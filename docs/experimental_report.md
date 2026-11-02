@@ -1,5 +1,7 @@
 # Guardian Fire-Control System: Experimental Report
 
+> **The full report is [Guardian_Experimental_Report.pdf](Guardian_Experimental_Report.pdf)** (27 pages). It embeds every figure, gives per-scenario observations, adds an evaluation-interface robustness study, makes evidence-based predictions for the unseen evaluation cases, and returns a verdict on each hypothesis. LaTeX source is in [`report/`](report/). This page is a condensed text summary.
+
 ME 319 Assignment 2 (Mumbai 2044). This report documents every experiment run on the final design: how test engagements were generated, how performance was measured, which statistical tests were applied, and what the evidence supports and does not support. It is the evidence base for the paper.
 
 All numbers are reproducible from `python/` (commands in §9). Figures are in [`docs/figures/`](figures/).

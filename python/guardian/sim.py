@@ -42,8 +42,14 @@ def _stops(s):
 
 
 def run(scenario, f_ctrl=1000.0, dt_plant=1e-3, integrator='rk4', theta0=0.0,
-        t_end=P.T_END, controller=None, log=True):
-    """Simulate one engagement. Returns a dict with time histories and metrics."""
+        t_end=P.T_END, controller=None, log=True, generator=None):
+    """Simulate one engagement. Returns a dict with time histories and metrics.
+
+    `generator(t, scenario) -> (r, theta, valid)` replaces the default measurement source,
+    e.g. to emulate other evaluation-script conventions.
+    """
+    if generator is None:
+        generator = target_motion_generator
     if controller is None:
         tc.reset()
         controller = tc.turret_controller
@@ -61,7 +67,7 @@ def run(scenario, f_ctrl=1000.0, dt_plant=1e-3, integrator='rk4', theta0=0.0,
                          'mode', 'valid')}
     for k in range(n_steps + 1):
         t = k * dt_c
-        r_m, th_m, valid = target_motion_generator(t, scenario)
+        r_m, th_m, valid = generator(t, scenario)
         V, fire = controller(t, r_m, th_m, valid, float(s[0]), float(s[1]))
         x, y = target_truth(t, scenario)[:2]
         if fire == 1 and fire_prev == 0 and t - t_pulse >= P.T_RECHARGE - 1e-9:

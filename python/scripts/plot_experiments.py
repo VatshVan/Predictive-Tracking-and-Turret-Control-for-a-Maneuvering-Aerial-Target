@@ -54,7 +54,7 @@ def fig_paths(n_show=80):
     a.set_aspect('equal')
     a.set_xlabel('x [m]')
     a.set_ylabel('y [m]')
-    a.set_title(f'(a) {n_show} random admissible trajectories (dots = start)', loc='left')
+    a.set_title(f'(a) {n_show} random trajectories', loc='left')
     a.text(150, 150, 'turret', fontsize=6.5, color=INK2)
 
     a = ax[1]

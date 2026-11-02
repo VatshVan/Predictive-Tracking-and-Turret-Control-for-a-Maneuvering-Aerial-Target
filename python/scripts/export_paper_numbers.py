@@ -17,7 +17,8 @@ from scipy import stats
 HERE = os.path.dirname(__file__)
 RES = os.path.join(HERE, '..', 'results')
 PAPER = os.path.join(HERE, '..', '..', 'paper')
-FIGS = ['scenario_C', 'mc_first_hit', 'mc_blackout_aligned', 'mc_calibration', 'mc_ablation_forest']
+FIGS = ['scenario_C', 'mc_first_hit', 'mc_blackout_aligned', 'mc_calibration', 'mc_ablation_forest',
+        'mc_error_bands']
 
 
 def load(name):
@@ -99,6 +100,33 @@ def main():
         'stPsureFh': f"{cps['d_fh']:.3f}", 'stPsureP': p_tex(cps['p_fh_holm']),
         'stPsureMiss': f"{cps['misses_base']}$\\to${cps['misses_var']}",
     }
+
+    # generalisation evidence: pooled nominal-setting engagements, slew model, interface study
+    D = S['describe']
+    pooled = [(D[t]['n'], D[t]['success']) for t in ('S_final', 'S_rate20', 'S_theta60')]
+    pooled += [(ST['summary'][t]['n'], ST['summary'][t]['success']) for t in ('final', 'final_20Hz')]
+    n_pool = sum(n for n, _ in pooled)
+    k_pool = sum(k for _, k in pooled)
+    z = 1.959964
+    fail_ub = (z * z / (2 * n_pool) + z * math.sqrt(z * z / (4 * n_pool ** 2))) / (1 + z * z / n_pool) \
+        if k_pool == n_pool else float('nan')
+    slew = np.array([f['slew_deg'] for f in feats])
+    fh_arr = np.array(fh, dtype=float)
+    A = np.vstack([np.ones_like(slew), slew]).T
+    coef = np.linalg.lstsq(A, fh_arr, rcond=None)[0]
+    res = fh_arr - A @ coef
+    N.update(pooledN=f'{n_pool:,}'.replace(',', '\\,'), pooledOK=f'{k_pool:,}'.replace(',', '\\,'),
+             pooledFail=f'{100 * fail_ub:.2f}',
+             slewA=f'{coef[0]:.2f}', slewB=f'{coef[1]:.4f}', slewR=f'{1 - res.var() / fh_arr.var():.2f}',
+             slewPI=f'{1.96 * res.std(ddof=2):.2f}', slewWorst=f'{coef[0] + coef[1] * 95:.1f}')
+    ipath = os.path.join(HERE, '..', 'results', 'interface_robustness.json')
+    if os.path.exists(ipath):
+        with open(ipath) as f:
+            IS = json.load(f)['summary']
+        N.update(ifN=f"{sum(s['n'] for s in IS.values()):,}".replace(',', '\\,'),
+                 ifOK=f"{sum(s['success'] for s in IS.values()):,}".replace(',', '\\,'),
+                 ifHitMin=f"{100 * min(s['hit_rate'] for s in IS.values()):.2f}",
+                 ifVariants=len(IS))
 
     rows = []
     with open(os.path.join(HERE, '..', 'results', 'scenarios.txt')) as f:

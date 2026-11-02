@@ -16,4 +16,7 @@ step "stress noise ensembles";   python scripts/stress_ensemble.py --reps 50 > /
 step "rate study";               python scripts/rate_study.py > results/rate_study.txt
 step "statistics";               python scripts/mc_statistics.py > /dev/null
 step "experiment figures";       python scripts/plot_experiments.py > /dev/null
+step "interface robustness";     python scripts/interface_robustness.py --n 300 > /dev/null
+step "report figures";           python scripts/plot_report_extras.py > /dev/null
+step "paper numbers";            python scripts/export_paper_numbers.py
 step "done"

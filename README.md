@@ -31,7 +31,7 @@ The core identity: in the linear time-invariant limit the reference generator's 
 | `python/tests/` | pytest suite |
 | `matlab/` | MATLAB port: `turret_controller.m`, `turret_plant.m`, `target_motion_generator.m`, run scripts |
 | `docs/power_stage.md` | 230 V outlet → ±600 V drive design (the voltage-limit assumption) |
-| `docs/experimental_report.md` | Detailed experimental report with statistics |
+| `docs/Guardian_Experimental_Report.pdf` | Detailed experimental report (27 pages, all figures, statistics, final-evaluation analysis); source in `docs/report/` |
 | `paper/` | IEEE paper source (`main.tex`; numbers generated into `numbers.tex`) |
 | `research_notes.md` | Design research and decisions |
 | `papers/README.md` | References (PDFs not redistributed) |
@@ -98,7 +98,7 @@ Monte Carlo over random admissible engagements (smooth bounded maneuvers, random
 
 Feedback loop: ω_c = 4.1 rad/s, phase margin 68°, gain margin 16 dB (18.6 dB at 20 Hz ZOH).
 
-The full experimental record (generation of test paths, statistical methods, paired ablations, stress ensembles, estimator consistency and hit-probability calibration) is in [docs/experimental_report.md](docs/experimental_report.md). `bash python/scripts/run_all_experiments.sh` regenerates every number and figure.
+The full experimental record (generation of test paths, statistical methods, paired ablations, stress ensembles, estimator consistency and hit-probability calibration) is in [docs/Guardian_Experimental_Report.pdf](docs/Guardian_Experimental_Report.pdf). `bash python/scripts/run_all_experiments.sh` regenerates every number and figure.
 
 ## Assumptions beyond the specification
 
