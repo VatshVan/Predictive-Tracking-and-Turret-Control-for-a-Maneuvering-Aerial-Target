@@ -226,6 +226,37 @@ EMI filter → bridge rectifier (≈325 V peak) → **PFC boost converter to a 6
 
 ---
 
+## 14. Build log and evidence (Nov 2–3)
+
+### Final architecture (Python `python/guardian/`, MATLAB `matlab/`, parity verified to 4e-9 V)
+1. **Estimator:** converted-measurement KF (unbiased conversion), order-4 Markov-jerk model (σ_j = 20 m/s³, τ_j = 0.4 s), envelope projection, χ² track-jump re-init, maneuver-class re-identification after loss.
+2. **Predictor:** exact LOS derivatives θ̂…θ̂''' via complex log-derivatives (z'/z chain); r = A₃(D)θ̂ = θ̂(t+t_p) Taylor.
+3. **Reference generator:** (A₃ + K)(D) y_d = r + K(D) θ̂. The A₃ lag cancels the t_p lead, so y_d → θ̂(t) exactly. K = d₃(s+p)³ − A₃ places the deviation poles at a triple −20 rad/s. Realised as a cascade (gains p/3, p, 3p) with rate/accel saturation (0.58 rad/s, 2.5 rad/s²), active only during acquisition.
+4. **Control:** exact plant-inverse feed-forward V = 0.32 y''' + 3.35 y'' + 1001.5 y', plus PI + roll-off C(s) = 4000(1 + 1/s)/(0.03s + 1). ω_c = 4.1 rad/s, PM 68°, GM 16 dB; the same within 1° and 2 dB at 20 Hz ZOH.
+5. **Fire control:** Gaussian mixture over 17 maneuver classes. Tracking: fire at P ≥ 0.999, or arm at P ≥ 0.90 and fire at the peak (−0.02) or after 0.3 s. Coasting: fire only while P ≥ 0.95 and decaying.
+
+### Analytical results for the paper
+- Taylor sections of e^{s t_p} are Hurwitz only for degree ≤ 4. Their minimum damping falls 1.0 → 0.71 → 0.36 → 0.11 for degree 1–4. A predictor-matched lag model therefore exists only up to order 4, and the bare A₃ lag rings (ζ = 0.36). This is why deviation feedback K is needed.
+- In the LTI limit, prediction + matched lag ≡ nowcast tracking (time-shift property). t_p sets the reference model, not the end-to-end transfer.
+
+### Decisions backed by Monte Carlo (300–500 random admissible engagements, 100 Hz)
+| Change | Evidence | Decision |
+|---|---|---|
+| Bare 1/A₃ reference | 5.3 m pointing RMS (46 m acquisition overshoot, ζ = 0.36) | Rejected → deviation feedback |
+| State-clamped reference at p ≥ 8 | 14–90 A current spikes, chatter | Rejected → cascaded saturation |
+| p_dev 5 → 20 | D6 RMS 1.59 → 0.61 m, first hit 2.1 → 1.0 s | Accepted (p = 30: noisier, no gain) |
+| Fire at first P ≥ 0.9 | Edge shots missed | Rejected → fire-now-or-wait rule |
+| Order 2 (CV) | 99.3 % success, 77 % time in R_eng | Rejected |
+| Order 3 vs order 4 | Order 3 ~10 % better on smooth MC; order 4 better on jerk/blackout cases (D4, D6, B), and order 3 missed in D4 at 20 Hz | **Order 4** (robust worst case) |
+| σ_j 40 → 20 | first-hit max 2.86 → 2.05 s | Accepted |
+| Class re-identification | No measurable MC difference vs plain KF recovery | Kept (harmless, motivated), reported honestly |
+| Ambush hold | Pointing p95 0.8 → 4.1 m, no hit gain | **Rejected** (kept as option, off) |
+| NIS-inflated firing σ | No measurable change | **Rejected** (simplicity) |
+| Coast threshold p_min 0.75 → 0.95 | All 9 MC misses were coast shots 0.2–0.43 s into a loss; 9 → 1 misses, no time cost | Accepted |
+| Instant-fire p_sure 0.99 → 0.999 | Removes the D6 jerk-reversal miss (fired at P = 0.9901, missed by 2 cm); MC first-hit mean +0.04 s | Accepted |
+
+---
+
 ## Sources
 - Spec: `Assignment_2_ME_319_Control_Systems_S3.pdf`
 - de Groot, Ferranti, Gavrila, Alonso-Mora, *Topology-Driven Parallel Trajectory Optimization in Dynamic Environments*, arXiv:2401.06021v2 (2024): `2401.06021v2.pdf`

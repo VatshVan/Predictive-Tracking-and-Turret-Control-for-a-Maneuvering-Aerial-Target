@@ -19,3 +19,4 @@ Thumbs.db
 # MATLAB scratch
 matlab/figures/
 *.asv
+matlab/parity/

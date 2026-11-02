@@ -1,0 +1,101 @@
+# Guardian: Predictive Tracking and Turret Control for a Maneuvering Aerial Target
+
+ME 319 Control Systems (Autumn 2026, IIT Bombay), Assignment 2: *Mumbai 2044*.
+
+A predictive-feedback fire-control system for the elevation axis of a laser turret. It estimates a maneuvering V-44 target from noisy 20 Hz radar (range, elevation), predicts its elevation t_p = 0.5 s ahead, steers the turret with an LTI two-degree-of-freedom controller, and decides when to fire the 1 Hz pulsed laser. It keeps working through radar blackouts.
+
+## Architecture
+
+```
+radar (r, θ) ─► converted-measurement KF ─► LOS nowcast θ̂, θ̂', θ̂'', θ̂''' ─► Taylor advance A₃(s): r = θ̂(t+t_p)
+                (Markov-jerk model,           │                                 │
+                 envelope projection,         │                                 ▼
+                 class re-identification)     │                  reference generator (A₃+K)(D) y_d = r + K(D) θ̂
+                                              │                                 │ y_d, y_d', y_d'', y_d'''
+                                              ▼                                 ▼
+                         maneuver-class hit probability          V = Gp⁻¹(D) y_d  +  C(s)(y_d − θ)  ─► turret
+                         + consensus + fire-now-or-wait ─► fire_cmd       (feed-forward)   (PI + roll-off)
+```
+
+The core identity: in the linear time-invariant limit the reference generator's lag `1/A₃(s)` exactly cancels the predictor's lead `A₃(s) ≈ e^{s t_p}`, so the turret tracks the target's *current* elevation (the laser is instantaneous) while the controller only ever sees the t_p-predicted reference. The deviation feedback `K(s)` places the transient poles (triple pole at −20 rad/s) without disturbing that cancellation.
+
+## Repository layout
+
+| Path | Contents |
+|---|---|
+| `python/guardian/turret_controller.py` | Estimator, predictor, reference generator, feedback, fire control |
+| `python/guardian/turret_plant.py` | First-principles elevation drive, ±600 V supply limit |
+| `python/guardian/target_motion_generator.py` | Scenarios A, B, C, stress scenarios D1–D6, Monte Carlo family `MC<seed>` |
+| `python/guardian/sim.py` | Closed-loop harness mirroring the evaluation call pattern, pulse judging |
+| `python/scripts/` | `plot_scenarios.py`, `monte_carlo.py`, `design_analysis.py`, `rate_study.py` |
+| `python/tests/` | pytest suite |
+| `matlab/` | MATLAB port: `turret_controller.m`, `turret_plant.m`, `target_motion_generator.m`, run scripts |
+| `docs/power_stage.md` | 230 V outlet → ±600 V drive design (the voltage-limit assumption) |
+| `research_notes.md` | Design research and decisions |
+| `papers/README.md` | References (PDFs not redistributed) |
+
+## Reproducing the results (Python)
+
+```bash
+cd python
+pip install -r requirements.txt
+python -m pytest -q tests
+python scripts/plot_scenarios.py
+python scripts/design_analysis.py
+python scripts/monte_carlo.py --n 300 --f-ctrl 100 --tag baseline
+python scripts/rate_study.py
+```
+
+Figures and Monte Carlo outputs are written to `python/results/`.
+
+## Step size and call rate (for the evaluation script)
+
+| Item | Requirement |
+|---|---|
+| Plant integration step | **≤ 1 ms** (or `ode45`). Forward Euler on `turret_plant` is unstable for steps above 3.34 ms because of the 8.9 Hz, ζ = 0.094 drive resonance. |
+| Controller call rate | **Recommended 100 Hz to 1 kHz; validated from 20 Hz to 5 kHz.** Use an integer multiple of the 20 Hz radar rate so every radar sample lands on a call. The controller measures its own time step from `t`, so no rate needs configuring. Below 20 Hz radar samples are lost. `turret_controller.m` costs about 0.5 ms per call (MATLAB R2025a, median 0.33 ms), which caps real-time use near 1 kHz. |
+| Reset between runs | Automatic: the controller re-initialises when `t` decreases or `t == 0`. In MATLAB, `clear turret_controller` also works. |
+| Initial turret state | Any; the controller starts from the turret state at its first call. |
+
+## Running in MATLAB
+
+```matlab
+cd matlab
+run_scenarios          % A, B, C, D1-D6 at 100 Hz: metrics table + figures in matlab/figures/
+o = run_engagement('B', 1000);   % one engagement at a chosen controller rate
+time_controller        % per-call execution time
+```
+
+`parity_check` replays logged Python runs (create them with `python scripts/export_parity.py`) through `turret_controller.m`. The two implementations agree to within 4e-9 V, with identical fire commands.
+
+## Results
+
+Standardized and stress scenarios (1 kHz controller, turret starting at 0°):
+
+| Scenario | First hit [s] | Pulses hit | Pointing RMS after 2 s [m] |
+|---|---|---|---|
+| A nominal | 1.00 | 9/9 | 0.32 |
+| B maneuvering | 1.01 | 9/9 | 0.53 |
+| C measurement loss | 0.98 | 10/10 | 0.41 |
+| D1 stealth break | 0.72 | 10/10 | 0.40 |
+| D2 weave | 1.03 | 9/9 | 0.99 |
+| D3 close-in pass | 1.28 | 9/9 | 0.32 |
+| D4 repeated loss | 0.98 | 9/9 | 0.59 |
+| D5 combined | 1.17 | 9/9 | 0.69 |
+| D6 jerk test | 1.10 | 9/9 | 0.78 |
+
+Monte Carlo over random admissible engagements (smooth bounded maneuvers, random loss onset ≥ 1 s and duration ≤ 0.5 s):
+
+| Set | Intercepted | Pulse hit rate | First hit mean / p95 / max [s] |
+|---|---|---|---|
+| 500 runs, 100 Hz | 500/500 | 99.96 % | 1.28 / 1.93 / 2.15 |
+| 500 runs, 20 Hz | 500/500 | 99.90 % | 1.65 / 2.25 / 3.50 |
+| 300 runs, 100 Hz, turret starting at 60° | 300/300 | 99.96 % | 1.14 / 1.80 / 2.16 |
+
+Feedback loop: ω_c = 4.1 rad/s, phase margin 68°, gain margin 16 dB (18.6 dB at 20 Hz ZOH).
+
+## Assumptions beyond the specification
+
+- Motor voltage limited to **±600 V** (rectified-and-boosted 230 V outlet; see `docs/power_stage.md`).
+- `meas_valid = 1` only when a new radar sample exists; repeated identical samples are ignored.
+- Mechanical stops at −10° and +85° clamp the turret state in the simulation harness.
