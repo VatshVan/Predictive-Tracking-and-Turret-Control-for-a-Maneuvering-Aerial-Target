@@ -15,3 +15,7 @@ python/results/
 Thumbs.db
 .vscode/
 .idea/
+
+# MATLAB scratch
+matlab/figures/
+*.asv

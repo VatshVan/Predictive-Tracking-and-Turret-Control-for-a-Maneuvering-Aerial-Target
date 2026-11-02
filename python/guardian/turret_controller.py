@@ -45,7 +45,7 @@ V_LIM = 600.0
 
 CFG = dict(
     order=4,              # states per axis: 2 = CV, 3 = Singer accel, 4 = Markov jerk
-    sigma_top=40.0,       # std of the top-derivative Markov process (jerk [m/s^3] for order 4)
+    sigma_top=20.0,       # std of the top-derivative Markov process (jerk [m/s^3] for order 4)
     tau_top=0.4,          # its correlation time [s]
     q_cv=200.0,           # white-acceleration intensity for order 2 [m^2/s^3]
     tau_fast=0.02,        # extra reference-model pole for orders < 4 (relative degree 3)
@@ -60,7 +60,7 @@ CFG = dict(
     p_sure=0.99,          # tracking: fire immediately above this hit probability
     p_fire=0.90,          # tracking: arm above this; fire at the peak or after t_wait
     t_wait=0.30,          # tracking: longest wait for a better shot once armed [s]
-    p_min=0.75,           # coasting: fire while certainty is still above this
+    p_min=0.95,           # coasting: fire only while certainty is still near tracking quality
     q_cons=0.80,          # minimum fraction of maneuver classes inside R_ENG
     n_upd_min=8,          # radar updates before the track may fire
     chi2_jump=40.0,       # innovation gate for track-jump detection (2 dof)
@@ -114,7 +114,7 @@ def _model(n):
 
 def _disc_target(S, dt):
     """Discrete transition F and process noise Q for the 2-axis target model (Van Loan)."""
-    key = int(round(dt * 1e7))
+    key = int(round(dt * 1e9))
     hit = S['disc'].get(key)
     if hit is not None:
         return hit
