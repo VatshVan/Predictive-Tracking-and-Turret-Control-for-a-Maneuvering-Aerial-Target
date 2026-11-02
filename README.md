@@ -27,10 +27,12 @@ The core identity: in the linear time-invariant limit the reference generator's 
 | `python/guardian/turret_plant.py` | First-principles elevation drive, ±600 V supply limit |
 | `python/guardian/target_motion_generator.py` | Scenarios A, B, C, stress scenarios D1–D6, Monte Carlo family `MC<seed>` |
 | `python/guardian/sim.py` | Closed-loop harness mirroring the evaluation call pattern, pulse judging |
-| `python/scripts/` | `plot_scenarios.py`, `monte_carlo.py`, `design_analysis.py`, `rate_study.py` |
+| `python/scripts/` | Experiments (`run_all_experiments.sh` runs all), statistics (`mc_statistics.py`), figures, paper-number export |
 | `python/tests/` | pytest suite |
 | `matlab/` | MATLAB port: `turret_controller.m`, `turret_plant.m`, `target_motion_generator.m`, run scripts |
 | `docs/power_stage.md` | 230 V outlet → ±600 V drive design (the voltage-limit assumption) |
+| `docs/experimental_report.md` | Detailed experimental report with statistics |
+| `paper/` | IEEE paper source (`main.tex`; numbers generated into `numbers.tex`) |
 | `research_notes.md` | Design research and decisions |
 | `papers/README.md` | References (PDFs not redistributed) |
 
@@ -82,17 +84,21 @@ Standardized and stress scenarios (1 kHz controller, turret starting at 0°):
 | D3 close-in pass | 1.28 | 9/9 | 0.32 |
 | D4 repeated loss | 0.98 | 9/9 | 0.59 |
 | D5 combined | 1.17 | 9/9 | 0.69 |
-| D6 jerk test | 1.10 | 9/9 | 0.78 |
+| D6 jerk test | 1.10 | 8/9 | 0.78 |
 
-Monte Carlo over random admissible engagements (smooth bounded maneuvers, random loss onset ≥ 1 s and duration ≤ 0.5 s):
+The single D6 miss (2 cm outside R_eng, right after a ±18 m/s² reversal) belongs to this noise realisation only: across 50 noise realisations of every scenario, the design intercepted 450/450 with 99.90 % of pulses hitting.
 
-| Set | Intercepted | Pulse hit rate | First hit mean / p95 / max [s] |
+Monte Carlo over random admissible engagements (smooth bounded maneuvers, random loss onset ≥ 1 s and duration ≤ 0.5 s), with 95 % confidence intervals:
+
+| Set | Intercepted | Pulse hit rate | First hit mean [CI] / p95 / max [s] |
 |---|---|---|---|
-| 500 runs, 100 Hz | 500/500 | 99.96 % | 1.28 / 1.93 / 2.15 |
-| 500 runs, 20 Hz | 500/500 | 99.90 % | 1.65 / 2.25 / 3.50 |
-| 300 runs, 100 Hz, turret starting at 60° | 300/300 | 99.96 % | 1.14 / 1.80 / 2.16 |
+| 1000 runs, 100 Hz | 1000/1000 (failure < 0.38 %) | 99.96 % [99.91, 99.99] | 1.21 [1.19, 1.24] / 1.83 / 2.14 |
+| 500 runs, 20 Hz | 500/500 | 99.81 % | 1.62 / 2.20 / 3.25 |
+| 500 runs, 100 Hz, turret starting at 60° | 500/500 | 99.94 % | 1.07 / 1.70 / 2.64 |
 
 Feedback loop: ω_c = 4.1 rad/s, phase margin 68°, gain margin 16 dB (18.6 dB at 20 Hz ZOH).
+
+The full experimental record (generation of test paths, statistical methods, paired ablations, stress ensembles, estimator consistency and hit-probability calibration) is in [docs/experimental_report.md](docs/experimental_report.md). `bash python/scripts/run_all_experiments.sh` regenerates every number and figure.
 
 ## Assumptions beyond the specification
 

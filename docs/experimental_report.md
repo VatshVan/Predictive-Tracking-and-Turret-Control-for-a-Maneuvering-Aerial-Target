@@ -2,7 +2,7 @@
 
 ME 319 Assignment 2 (Mumbai 2044). This report documents every experiment run on the final design: how test engagements were generated, how performance was measured, which statistical tests were applied, and what the evidence supports and does not support. It is the evidence base for the paper.
 
-All numbers are reproducible from `python/` (commands in §9). Figures are in `docs/figures/`.
+All numbers are reproducible from `python/` (commands in §9). Figures are in [`docs/figures/`](figures/).
 
 ---
 
@@ -14,7 +14,7 @@ All numbers are reproducible from `python/` (commands in §9). Figures are in `d
 | Predictor | Exact LOS derivatives θ̂, θ̂′, θ̂″, θ̂‴ from the Cartesian state; Taylor advance r = A₃(D)θ̂, A₃(s) = 1 + t_p s + (t_p s)²/2 + (t_p s)³/6, t_p = 0.5 s |
 | Reference generator | (A₃ + K)(D) y_d = r + K(D)θ̂ with A₃ + K = (t_p³/6)(s + 20)³; cascaded realisation with rate/acceleration saturation 0.58 rad/s, 2.5 rad/s² |
 | Feedback | V = G_p⁻¹(D) y_d + C(s)(y_d − θ), C(s) = 4000 (1 + 1/s)/(0.03 s + 1), \|V\| ≤ 600 V with conditional-integration anti-windup |
-| Fire control | Gaussian mixture over 17 maneuver classes. Tracking: fire if P_hit ≥ 0.999, or arm at P_hit ≥ 0.90 and fire at the peak (drop of 0.02) or after 0.3 s. Coasting: fire only while P_hit ≥ 0.95 and decaying. Class consensus ≥ 0.80; ≥ 8 radar updates; 1 s recharge |
+| Fire control | Gaussian mixture over 17 maneuver classes. Tracking: fire if P_hit ≥ 0.99, or arm at P_hit ≥ 0.90 and fire at the peak (drop of 0.02) or after 0.3 s. Coasting: fire only while P_hit ≥ 0.95 and decaying. Class consensus ≥ 0.80; ≥ 8 radar updates; 1 s recharge |
 
 The plant is the first-principles elevation drive θ/V = 1000 / [s(320 s² + 3350 s + 1.0015·10⁶)], with poles at 0 and −5.23 ± 55.70j (8.90 Hz, ζ = 0.094).
 
@@ -132,28 +132,30 @@ All random draws in the analysis use fixed seeds (bootstrap: 2044; permutation: 
 | D3 | 1.28 | 9/9 | 0.32 | 100 % |
 | D4 | 0.98 | 9/9 | 0.59 | 100 % |
 | D5 | 1.17 | 9/9 | 0.69 | 100 % |
-| D6 | 1.10 | 9/9 | 0.78 | 98.1 % |
+| D6 | 1.10 | 8/9 | 0.78 | 98.1 % |
 
 Time histories: `scenario_<ID>` figures. Peak voltage 583 V in every case.
+
+The single D6 miss is a tracking shot fired at P_hit = 0.9901 that missed by 2 cm, right after a ±18 m/s² reversal. Across 50 noise realisations of D6 (§6.2) the final design missed 0 of its D6 pulses, so this realisation is unlucky rather than typical. Raising the instant-fire threshold to 0.999 removes this particular miss but costs interception time everywhere, with no net reduction in misses (§6).
 
 ### 5.2 Monte Carlo, 1000 engagements (100 Hz)
 
 | Metric | Value | 95 % CI |
 |---|---|---|
 | Interceptions | 1000 / 1000 | [99.62 %, 100 %] (Wilson); failure probability < 0.38 % |
-| Pulse hit rate | 99.96 % (4 misses / 9138) | [99.91 %, 99.99 %] (cluster bootstrap) |
-| First-hit mean | 1.260 s | [1.235, 1.286] s |
-| First-hit p95 / max | 1.90 s / 2.30 s | |
+| Pulse hit rate | 99.96 % (4 misses / 9197) | [99.91 %, 99.99 %] (cluster bootstrap) |
+| First-hit mean | 1.214 s | [1.190, 1.239] s |
+| First-hit p95 / max | 1.83 s / 2.14 s | |
 | Pointing RMS median | 0.559 m | |
 | Time in R_eng | 99.40 % | |
 | Peak voltage | 589 V | (limit 600 V) |
 
-**Miss distances** (`mc_miss_hist`): median 0.37 m, p90 0.90 m, p99 1.45 m, max 2.26 m. All four misses were tracking-mode shots that missed by 0.01–0.26 m.
+**Miss distances** (`mc_miss_hist`): median 0.39 m, p90 0.95 m, p99 1.48 m, max 2.26 m. Of the 9197 pulses, 8986 were tracking shots and 211 coasting shots. All four misses were tracking-mode shots that missed by 0.01–0.26 m.
 
 **Interception time is acquisition-limited** (`mc_first_hit`):
-- First-hit time correlates with the initial slew \|θ_T(0) − θ(0)\| at Spearman ρ = 0.94.
-- It is essentially uncorrelated with maneuver intensity (ρ = 0.05 with RMS acceleration), peak jerk (ρ = 0.03) and blackout total (ρ = 0.06, p = 0.05).
-- Engagements needing < 10° of slew are intercepted at 0.52 s on average.
+- First-hit time correlates with the initial slew \|θ_T(0) − θ(0)\| at Spearman ρ = 0.97.
+- It is not significantly correlated with maneuver intensity (ρ = 0.05 with RMS acceleration, p = 0.15), peak jerk (ρ = 0.03) or blackout total (ρ = 0.05, p = 0.09).
+- Engagements needing < 10° of slew are intercepted at 0.51 s on average.
 - The scatter lies on a line parallel to the pure-slew bound θ/0.58 rad/s, offset by settling and the 8-update firing gate.
 - In short, the time to the first shot is set by turret kinematics, not by the estimator or the target.
 
@@ -182,7 +184,7 @@ The filter is statistically consistent while tracking, and slightly conservative
 ### 5.6 Hit-probability calibration (`mc_calibration`)
 - Over about 270 000 controller samples, observed frequency tracks predicted P_hit across all bins (Brier score 0.0045).
 - Mid-range bins are conservative: predicted 0.62 → observed 0.69; predicted 0.75 → observed 0.83.
-- At the 9138 fire instants the mean predicted P_hit was 0.9991, implying 7.8 expected misses. Only 4 occurred.
+- At the 9197 fire instants the mean predicted P_hit was 0.9991, implying 8.6 expected misses. Only 4 occurred.
 - So the firing decision is an honest probability statement, and errs on the safe side.
 
 ---
@@ -193,27 +195,67 @@ The filter is statistically consistent while tracking, and slightly conservative
 
 | Variant (one change from final) | Δ first hit [s] (95 % CI), p | Δ pointing RMS [m] (95 % CI), p | Misses final → variant, p | Verdict |
 |---|---|---|---|---|
-| Order 2 (constant velocity) | +0.172 (0.128, 0.226), 2·10⁻⁴⁶ | +0.878 (0.814, 0.939), 10⁻⁷⁴ | 2 → 77, 5.5·10⁻⁴; **2 interceptions lost** | Strongly worse |
-| Deviation pole p = 10 | +0.418 (0.401, 0.435), 10⁻⁸¹ | +0.206 (0.191, 0.222), 10⁻⁸² | 2 → 13, 0.037 | Strongly worse |
-| Ambush hold enabled | +0.001 (−0.001, 0.003), 1 | +0.822 (0.717, 0.932), 6·10⁻⁵¹ | 2 → 1, 1 | Worse pointing, no hit gain: **rejected** |
-| Controller at 20 Hz | +0.369 (0.346, 0.393), 6·10⁻⁷⁸ | +0.369 (0.348, 0.391), 10⁻⁸² | 2 → 4, 1 | Slower, still 500/500 |
-| Jerk noise σ_j = 40 | +0.021 (0.011, 0.031), 3·10⁻⁷ | +0.022 (0.015, 0.029), 3·10⁻¹⁰ | 2 → 2, 1 | Slightly worse |
-| Deviation pole p = 30 | +0.179 (0.159, 0.200), 2·10⁻³² | −0.021 (−0.037, −0.001), 3·10⁻⁴⁹ | 2 → 1, 1 | Slower acquisition for marginal pointing gain |
-| Instant-fire threshold 0.99 | **−0.047** (−0.058, −0.037), 2·10⁻³⁶ | 0 | 2 → 2, 1 | Faster on smooth targets (see §6.2) |
-| Coast threshold 0.75 | −0.002 (−0.004, 0.000), 0.63 | 0 | 2 → 8, 0.62 | More misses; not significant at this n |
+| Order 2 (constant velocity) | +0.157 (0.104, 0.224), 5·10⁻⁴³ | +0.878 (0.815, 0.940), 10⁻⁷⁴ | 2 → 68, 5.5·10⁻⁴; **3 interceptions lost** | Strongly worse |
+| Deviation pole p = 10 | +0.433 (0.419, 0.446), 2·10⁻⁸² | +0.206 (0.191, 0.222), 10⁻⁸² | 2 → 10, 0.39 | Strongly worse |
+| Ambush hold enabled | +0.001 (−0.001, 0.002), 1 | +0.822 (0.717, 0.932), 6·10⁻⁵¹ | 2 → 2, 1 | Worse pointing, no hit gain: **rejected** |
+| Controller at 20 Hz | +0.384 (0.364, 0.403), 6·10⁻⁷⁸ | +0.369 (0.348, 0.391), 10⁻⁸² | 2 → 8, 0.89 | Slower, still 500/500 |
+| Deviation pole p = 30 | +0.171 (0.151, 0.191), 10⁻³¹ | −0.021 (−0.037, −0.001), 3·10⁻⁴⁹ | 2 → 4, 1 | Slower acquisition for a marginal pointing gain |
+| Instant-fire threshold 0.999 | +0.047 (0.037, 0.058), 2·10⁻³⁶ | 0 | 2 → 2, 1 | Slower, no accuracy gain: **rejected** |
+| Jerk noise σ_j = 40 | +0.014 (0.006, 0.024), 0.0013 | +0.022 (0.015, 0.029), 3·10⁻¹⁰ | 2 → 2, 1 | Slightly worse |
+| Coast threshold 0.75 | −0.002 (−0.004, 0.000), 0.63 | 0 | 2 → 8, 0.65 | More misses (not significant at this n), no time gain |
 | No class re-identification | 0.000, 1 | 0.000, 0.77 | 2 → 2, 1 | **No measurable effect** |
-| Order 3 (Singer acceleration) | −0.016 (−0.026, −0.005), 0.66 | **−0.061** (−0.066, −0.056), 5·10⁻⁷⁰ | 2 → 0, 1 | Better on smooth targets (see §6.2) |
-| Turret starts at 60° | −0.149 (−0.216, −0.080), 1.8·10⁻⁴ | −0.008, 0.002 | 2 → 1, 1 | Shorter slew → earlier hit |
+| Order 3 (Singer acceleration) | −0.002 (−0.011, 0.008), 1 | **−0.061** (−0.066, −0.056), 5·10⁻⁷⁰ | 2 → 1, 1 | Better pointing on smooth targets (see §6.2) |
+| Turret starts at 60° | −0.165 (−0.229, −0.097), 2·10⁻⁵ | −0.008 (−0.013, −0.004), 0.0024 | 2 → 3, 1 | Shorter slew → earlier hit |
 
 Figure: `mc_ablation_forest`.
 
 ### 6.2 Stress-scenario noise ensembles
 
-<<STRESS>>
+The Monte Carlo maneuvers are smooth. To test the jerky and blackout-heavy cases a hidden scenario might contain, every scenario A–D6 was re-run with 50 independent radar-noise realisations (`D6#k`), identical across variants: 450 paired engagements per variant (`results/stress_report.md`).
+
+| Variant | Intercepted | Pulse hit rate [95 % CI] | Misses | First hit mean [s] [CI] | Pointing RMS mean [m] [CI] |
+|---|---|---|---|---|---|
+| **Final design (100 Hz)** | 450/450 | 99.90 % [99.75, 99.96] | 4 | 0.983 [0.970, 0.996] | 0.585 [0.564, 0.606] |
+| Order 3 | 450/450 | 99.88 % [99.71, 99.95] | 5 | 0.988 [0.973, 1.002] | 0.586 [0.565, 0.609] |
+| Instant-fire 0.999 | 450/450 | 99.90 % [99.75, 99.96] | 4 | 1.013 [0.999, 1.026] | 0.585 [0.563, 0.606] |
+| Coast threshold 0.75 | 450/450 | 99.90 % [99.75, 99.96] | 4 | 0.983 [0.970, 0.996] | 0.585 [0.564, 0.605] |
+| Final design, 20 Hz | 450/450 | 99.61 % [99.35, 99.76] | 15 | 1.490 [1.463, 1.519] | 0.756 [0.741, 0.772] |
+| Order 3, 20 Hz | 450/450 | 99.27 % [98.95, 99.50] | 28 | 1.504 [1.473, 1.536] | 0.777 [0.762, 0.793] |
+
+Paired comparisons (variant − reference, Holm-adjusted):
+
+| Comparison | Δ first hit [s] [CI], p | Δ RMS [m] [CI], p | Misses ref → variant, p |
+|---|---|---|---|
+| Order 3 vs final (100 Hz) | +0.005 [−0.001, +0.012], 10⁻⁹ | +0.002 [−0.008, +0.011], 0.82 | 4 → 5, 1 |
+| Instant-fire 0.999 vs final | +0.029 [+0.020, +0.041], 3·10⁻³³ | 0 | 4 → 4, 1 |
+| Coast 0.75 vs final | 0 | 0 | 4 → 4, 1 |
+| Order 3 vs final (20 Hz) | +0.014 [+0.001, +0.028], 0.34 | **+0.021** [+0.012, +0.031], **1.1·10⁻⁴** | 15 → 28, 0.13 |
+
+Per scenario (order 3 − order 4 pointing RMS at 100 Hz; every entry has unadjusted p < 0.005):
+
+| A | B | C | D1 | D2 | D3 | D4 | D5 | D6 |
+|---|---|---|---|---|---|---|---|---|
+| −0.038 | **+0.090** | −0.041 | −0.042 | −0.102 | −0.008 | **+0.093** | −0.107 | **+0.171** |
+
+Order 3 is better on smooth and weaving motion (A, C, D1, D2, D5). Order 4 is better wherever the acceleration *switches*: B, the repeated-loss case D4, and the jerk test D6, where order 3 loses 0.17 m. Averaged over the nine scenarios they tie at 100 Hz. At a 20 Hz controller, order 4 is significantly better overall.
 
 ### 6.3 What the evidence supports
 
-<<VERDICT>>
+| Design choice | Evidence | Strength |
+|---|---|---|
+| Jerk-state (order-4) estimator over constant velocity | 3 interceptions lost and 34× the misses with order 2; +0.88 m RMS | Decisive |
+| Order 4 over order 3 | Order 3 better on smooth MC (−0.061 m); tie on stress at 100 Hz; order 4 better on maneuver switches (B, D4, D6: up to 0.17 m) and overall at 20 Hz (+0.021 m, p = 10⁻⁴) | Conditional: robust worst case vs a small average loss |
+| Deviation pole p = 20 | p = 10: +0.43 s and +0.21 m; p = 30: +0.17 s for −0.02 m | Strong |
+| Instant-fire threshold 0.99 (not 0.999) | 0.999 costs 0.047 s (MC) and 0.029 s (stress) with identical misses | Strong |
+| Coast threshold 0.95 (not 0.75) | 2 vs 8 misses on MC, no time cost; not significant after correction; identical on stress | Weak, directional |
+| Ambush hold off | +0.82 m RMS, no hit gain | Strong (against) |
+| Class re-identification | No measurable effect either way | Kept as harmless; not claimed as a benefit |
+| 100 Hz–1 kHz controller | 20 Hz is +0.38 s and +0.37 m; saturation near 200 Hz | Strong |
+
+Claims the evidence does **not** support:
+- That order 4 is uniformly better than order 3. It is not, on smooth targets.
+- That the coast threshold measurably reduces misses at this sample size.
+- That class re-identification improves blackout recovery.
 
 ---
 
@@ -223,15 +265,15 @@ Figure: `mc_ablation_forest`.
 
 | f_ctrl [Hz] | Intercepted | Pulses hit | First hit mean / max [s] | Median pointing RMS [m] |
 |---|---|---|---|---|
-| 20 | 24/24 | 200/200 | 1.70 / 2.65 | 0.76 |
-| 40 | 24/24 | 210/211 | 1.49 / 2.25 | 0.63 |
-| 60 | 24/24 | 212/212 | 1.34 / 2.10 | 0.56 |
-| 100 | 24/24 | 217/217 | 1.26 / 2.05 | 0.54 |
+| 20 | 24/24 | 201/201 | 1.64 / 2.50 | 0.76 |
+| 40 | 24/24 | 215/215 | 1.41 / 2.10 | 0.63 |
+| 60 | 24/24 | 215/215 | 1.26 / 2.05 | 0.56 |
+| 100 | 24/24 | 219/219 | 1.21 / 1.88 | 0.54 |
 | 200 | 24/24 | 220/220 | 1.21 / 1.90 | 0.53 |
-| 500 | 24/24 | 221/221 | 1.22 / 1.91 | 0.52 |
-| 1000 | 24/24 | 221/221 | 1.23 / 1.91 | 0.52 |
-| 2000 | 24/24 | 221/221 | 1.23 / 1.91 | 0.52 |
-| 5000 | 24/24 | 221/221 | 1.23 / 1.92 | 0.52 |
+| 500 | 24/24 | 220/221 | 1.22 / 1.90 | 0.52 |
+| 1000 | 24/24 | 220/221 | 1.22 / 1.91 | 0.52 |
+| 2000 | 24/24 | 220/221 | 1.23 / 1.91 | 0.52 |
+| 5000 | 24/24 | 220/221 | 1.23 / 1.91 | 0.52 |
 
 - Performance saturates at about 200 Hz.
 - Forward-Euler plant integration at 1 ms (controller 100 Hz) works: Scenario B first hit at 0.95 s. Forward Euler is unstable above 3.34 ms.
@@ -257,7 +299,7 @@ Figure: `mc_ablation_forest`.
 2. **Single noise model.** Radar noise is white Gaussian as specified. Glint, bias and range-dependent noise are not modelled.
 3. **Plant exactness.** The feed-forward inverts the same plant the simulator integrates. Robustness to parameter error rests on the feedback margins (PM 68°, GM 16 dB), not on simulation.
 4. **Laser model.** Pulses are instantaneous rays, per the spec. Dwell and beam divergence are not modelled.
-5. **Small-effect power.** With 2 baseline misses in 500 paired runs, differences of a few misses (e.g. coast threshold 0.75: 8 misses) cannot reach significance. Miss-count conclusions are directional only.
+5. **Small-effect power.** With 2 baseline misses in 500 paired runs, differences of a few misses (e.g. coast threshold 0.75: 8 misses) cannot reach significance. Miss-count conclusions are directional only. The single miss at 500 Hz and above in the rate study is the D6 reversal shot discussed in §5.1.
 6. **Rate-study scale.** 24 cases per rate support "no failures", not fine-grained comparisons between neighbouring rates.
 
 ---
@@ -266,12 +308,13 @@ Figure: `mc_ablation_forest`.
 
 ```bash
 cd python
+bash scripts/run_all_experiments.sh           # everything below, in order
 python -m pytest -q tests                     # 40 tests
 python scripts/design_analysis.py             # plant, margins, Taylor-polynomial roots
 python scripts/plot_scenarios.py              # §5.1 table + scenario figures
 bash scripts/run_ablations.sh                 # §5.2, §6.1 Monte Carlo campaign
 python scripts/mc_ensemble.py --n 300         # §5.3-5.6 logged ensemble
-python scripts/statistics.py                  # CIs and paired tests -> results/stats_report.md
+python scripts/mc_statistics.py               # CIs and paired tests -> results/stats_report.md
 python scripts/stress_ensemble.py --reps 50   # §6.2 -> results/stress_report.md
 python scripts/rate_study.py                  # §7
 python scripts/plot_experiments.py            # Monte Carlo figures

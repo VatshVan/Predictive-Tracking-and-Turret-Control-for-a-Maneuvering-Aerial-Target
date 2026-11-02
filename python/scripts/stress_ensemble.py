@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from guardian import turret_controller as tc  # noqa: E402
 from guardian.sim import run  # noqa: E402
-from statistics import boot_ci, holm, wilson  # noqa: E402
+from mc_statistics import boot_ci, holm, wilson  # noqa: E402
 
 RESULTS = os.path.join(os.path.dirname(__file__), '..', 'results')
 SCENARIOS = ['A', 'B', 'C', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6']

@@ -1,6 +1,6 @@
 """Statistical analysis of the Monte Carlo campaign (results/mc_S_*.json).
 
-python scripts/statistics.py
+python scripts/mc_statistics.py
 Writes results/stats.json and results/stats_report.md.
 
 Per configuration

@@ -1,7 +1,7 @@
 """Experimental figures for the report and paper (Monte Carlo campaign).
 
 Requires: results/mc_S_*.json (run_ablations.sh), results/ensemble.npz (mc_ensemble.py),
-results/stats.json (statistics.py), results/rate_study.txt (rate_study.py).
+results/stats.json (mc_statistics.py), results/rate_study.txt (rate_study.py).
 python scripts/plot_experiments.py
 """
 import json

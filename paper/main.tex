@@ -249,7 +249,7 @@ Fig.~\ref{fig:blackout} aligns \nBlackouts{} blackouts. Pointing error peaks at 
 \label{sec:ablation}
 Each design choice was tested as a one-factor change on the same 500 seeds as the final design, so trajectory, blackouts and noise are paired. We used Wilcoxon signed-rank tests for timing and pointing \cite{wilcoxon1945}, a sign-flip permutation test for missed pulses, and Holm correction over the 11 comparisons \cite{holm1979}. The results (Fig.~\ref{fig:forest}):
 \begin{itemize}
-\item A constant-velocity filter (order 2) is decisively worse: pointing RMS $+\abOtwoRms$\,m, missed pulses \abOtwoMiss, and two interceptions lost.
+\item A constant-velocity filter (order 2) is decisively worse: pointing RMS $+\abOtwoRms$\,m, missed pulses \abOtwoMiss, and \abOtwoLost{} interceptions lost.
 \item A slower deviation pole ($p=10$) delays interception by \abPtenFh\,s. A faster one ($p=30$) gains only $\abPthirtyRms$\,m RMS but delays interception by \abPthirtyFh\,s.
 \item The ambush hold from our early design (park the beam where every maneuver class must cross) worsens pointing by \abAmbRms\,m without gaining hits, so it was rejected.
 \item Class re-identification at blackout recovery had no measurable effect; the Kalman update with the coasted covariance already does that job.

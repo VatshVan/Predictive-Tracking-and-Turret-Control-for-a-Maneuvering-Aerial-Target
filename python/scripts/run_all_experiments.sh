@@ -14,6 +14,6 @@ step "Monte Carlo ablations";    FORCE=1 bash scripts/run_ablations.sh
 step "logged ensemble";          python scripts/mc_ensemble.py --n 300 --f-ctrl 100
 step "stress noise ensembles";   python scripts/stress_ensemble.py --reps 50 > /dev/null
 step "rate study";               python scripts/rate_study.py > results/rate_study.txt
-step "statistics";               python scripts/statistics.py > /dev/null
+step "statistics";               python scripts/mc_statistics.py > /dev/null
 step "experiment figures";       python scripts/plot_experiments.py > /dev/null
 step "done"
