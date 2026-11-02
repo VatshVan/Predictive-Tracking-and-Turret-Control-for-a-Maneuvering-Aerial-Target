@@ -163,7 +163,7 @@ cfg = struct( ...
     'alpha_ref_max', 2.5, ...   % acquisition acceleration limit [rad/s^2]
     'use_reid', true, ...    % maneuver-class re-identification after measurement loss
     'use_ambush', false, ... % ambush hold during long measurement loss
-    'p_sure', 0.999, ...     % tracking: fire immediately above this hit probability
+    'p_sure', 0.99, ...      % tracking: fire immediately above this hit probability
     'p_fire', 0.90, ...      % tracking: arm; fire at the peak or after t_wait
     't_wait', 0.30, ...      % tracking: longest wait once armed [s]
     'p_min', 0.95, ...       % coasting: fire only while certainty is near tracking quality

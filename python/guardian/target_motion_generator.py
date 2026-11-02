@@ -182,18 +182,22 @@ def _envelope_ok(traj, elev_margin=False):
 
 
 def _get(scenario):
+    """Cached trajectory + noise. 'NAME#k' reuses NAME's trajectory with noise realisation k."""
     if scenario in _CACHE:
         return _CACHE[scenario]
-    d = _scenario_def(scenario)
+    base, _, rep = scenario.partition('#')
+    d = _scenario_def(base)
     t = np.arange(0.0, T_GRID_END + DT_GRID / 2, DT_GRID)
     traj = d['traj'] if 'traj' in d else _integrate(d, t)
     if not _envelope_ok(traj):
         raise ValueError(f"scenario {scenario} violates the operating envelope: {envelope_report(traj)}")
     n_ticks = int(round(T_GRID_END / P.DT_RADAR)) + 1
-    if scenario.startswith('MC'):
-        seed = int(scenario[2:]) + 10007
+    if base.startswith('MC'):
+        seed = int(base[2:]) + 10007
     else:
-        seed = sum(ord(c) * 131**k for k, c in enumerate(scenario)) % (2**32)
+        seed = sum(ord(c) * 131**k for k, c in enumerate(base)) % (2**32)
+    if rep:
+        seed = (seed + 7919 * (int(rep) + 1)) % (2**32)
     rng = np.random.default_rng(seed)
     noise = rng.standard_normal((n_ticks, 2)) * np.array([P.SIGMA_R, P.SIGMA_TH])
     entry = dict(traj=traj, blackouts=d['blackouts'], noise=noise)

@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from guardian import turret_controller as tc  # noqa: E402
 from guardian.sim import run  # noqa: E402
+from guardian.target_motion_generator import _get  # noqa: E402
 
 RESULTS = os.path.join(os.path.dirname(__file__), '..', 'results')
 
@@ -32,11 +33,41 @@ def _parse_value(v):
 def _one(job):
     seed, f_ctrl, overrides, theta0 = job
     tc.CFG.update(overrides)
-    o = run(f'MC{seed}', f_ctrl=f_ctrl, theta0=theta0)
+    scenario = f'MC{seed}'
+    o = run(scenario, f_ctrl=f_ctrl, theta0=theta0)
     m = o['metrics']
     m['seed'] = seed
-    m['pulses'] = [(p['t'], p['miss']) for p in o['pulses']]
+    pulses = []
+    for p in o['pulses']:
+        k = int(round(p['t'] * f_ctrl))
+        pulses.append((p['t'], p['miss'], float(o['p_hit'][k]), str(o['mode'][k])))
+    m['pulses'] = pulses
+    m['features'] = path_features(scenario, theta0)
     return m
+
+
+def path_features(scenario, theta0=0.0):
+    """Descriptors of how a random engagement was generated (for the experiment report)."""
+    e = _get(scenario)
+    tr = e['traj']
+    k = tr['t'] <= 10.0 + 1e-9
+    x, y, vx, vy, ax, ay = (tr[n][k] for n in ('x', 'y', 'vx', 'vy', 'ax', 'ay'))
+    r = np.hypot(x, y)
+    th = np.arctan2(y, x)
+    los_rate = (x * vy - y * vx) / r ** 2
+    jerk = np.hypot(np.diff(ax), np.diff(ay)) / (tr['t'][1] - tr['t'][0])
+    bo = e['blackouts']
+    return dict(
+        r0=float(r[0]), th0_deg=float(np.degrees(th[0])), speed0=float(np.hypot(vx[0], vy[0])),
+        r_min=float(r.min()), r_max=float(r.max()),
+        v_max=float(np.hypot(vx, vy).max()), a_max=float(np.hypot(ax, ay).max()),
+        a_rms=float(np.sqrt(np.mean(ax ** 2 + ay ** 2))), jerk_max=float(jerk.max()),
+        los_rate_max=float(np.abs(los_rate).max()),
+        th_min_deg=float(np.degrees(th.min())), th_max_deg=float(np.degrees(th.max())),
+        n_blackouts=len(bo), blackouts=[(float(a), float(b)) for a, b in bo],
+        blackout_total=float(sum(b for _, b in bo)),
+        slew_deg=float(abs(np.degrees(th[0] - theta0))),
+    )
 
 
 def summarize(rows):
