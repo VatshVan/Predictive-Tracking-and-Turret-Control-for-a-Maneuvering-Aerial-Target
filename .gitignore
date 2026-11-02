@@ -1,0 +1,17 @@
+# Paper PDFs are copyrighted; only the index (papers/README.md) is tracked
+papers/*.pdf
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+
+# Generated outputs (regenerate with the scripts)
+python/results/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
