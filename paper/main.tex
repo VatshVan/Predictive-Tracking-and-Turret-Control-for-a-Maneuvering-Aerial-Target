@@ -29,7 +29,7 @@ Code: {\footnotesize\url{https://github.com/VatshVan/Predictive-Tracking-and-Tur
 \maketitle
 
 \begin{abstract}
-We design the elevation-axis fire-control system of a pulsed-laser point-defence turret that must engage a maneuvering V-44 target from noisy 20\,Hz range/elevation radar, through radar blackouts of up to 0.5\,s. Because the laser is instantaneous, the prescribed $t_p=0.5$\,s prediction does not lead the target; it compensates the lag of the turret loop. We make this exact: a jerk-model converted-measurement Kalman filter supplies the line-of-sight (LOS) angle and three derivatives, a third-order Taylor advance $A_3(s)$ forms the predicted elevation reference, and a reference generator whose denominator contains the same $A_3(s)$ cancels the predictor by the time-shift property of LTI systems. We show that this construction exists only up to fourth order (Taylor sections of $e^{s t_p}$ are Hurwitz only for degree $\le 4$), reassign the lightly damped cancellation poles by deviation feedback, and invert the third-order drive exactly in a feed-forward path, leaving a PI compensator ($68^\circ$ phase margin, 16\,dB gain margin) for robustness. A calibrated hit-probability rule decides when to fire. Over \mcN{} random admissible engagements the design intercepted every target (failure probability $<\mcFailUB\%$, 95\% bound), with \mcHit\% of pulses hitting and a mean interception time of \mcFh\,s.
+We design the elevation-axis fire-control system of a pulsed-laser point-defence turret that must engage a maneuvering V-44 target from noisy 20\,Hz range/elevation radar, through radar blackouts of up to 0.5\,s. Because the laser is instantaneous, a hit needs the turret on the target's \emph{present} elevation, so the prescribed $t_p=0.5$\,s prediction must not lead the beam. We state precisely what the prediction is for. A jerk-model converted-measurement Kalman filter supplies the line-of-sight (LOS) angle and three derivatives. The third-order Taylor advance $A_3(s)$ forms the predicted reference, which carries the target's future motion into the controller. A two-input reference generator then removes the time advance exactly, $(\D+20)^3(y_d-\hat\theta)=0$, while an exact plant inverse uses the same derivatives to cancel the drive's lag. A PI loop ($68^\circ$ phase margin, 16\,dB gain margin) handles the rest. We prove that keeping the Taylor prediction inside the loop is possible only to order four, and show by test that doing so costs accuracy. A calibrated hit-probability rule decides when to fire. Over \mcN{} independent random engagements the design intercepted every target (failure probability $<\mcFailUB\%$, one-sided 97.5\% bound), with \mcHit\% of pulses hitting and a mean interception time of \mcFh\,s. It also intercepted all \hgN{} homotopy-guided adversarial engagements.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -42,12 +42,12 @@ Anti-aircraft predictors from the Kerrison predictor to the Bell Labs M9 aimed a
 
 Three numbers make the problem hard. A 2\,m engagement radius is 1\,mrad at 2\,km, only $2.9\sigma_\theta$ of a single radar sample ($\sigma_\theta=0.35$\,mrad). An adversarial acceleration can displace the target by $\tfrac12 a_{\max}t_p^2=2.5$\,m in $t_p=0.5$\,s, more than the engagement radius. And the elevation drive has a lightly damped electromechanical mode at 8.9\,Hz ($\zeta=0.094$), so the reference must be smooth.
 
-Target tracking for fire control is mature: Kalman target-state estimators \cite{barshalom2001}, the Singer and jerk maneuver models \cite{singer1970,mehrotra1997jerk,li2003survey}, converted-measurement filtering of polar radar data \cite{lerro1993}, and interacting multiple models \cite{mazor1998imm,li2005survey}. Parallel evaluation of distinct hypotheses with consistent selection \cite{degroot2024tmpc} and sampling-based rollouts \cite{williams2017mppi} come from robot motion planning. Our contribution is not a new estimator but the way the blocks are \emph{matched} to this problem:
+Target tracking for fire control is mature: Kalman target-state estimators \cite{barshalom2001}, the Singer and jerk maneuver models \cite{singer1970,mehrotra1997jerk,li2003survey}, converted-measurement filtering of polar radar data \cite{lerro1993}, and interacting multiple models \cite{mazor1998imm,li2005survey}. Homotopy classes of trajectories with consistent plan selection come from robot motion planning \cite{degroot2024tmpc}. Our contribution is not a new estimator but the way the blocks are \emph{matched} to this problem:
 \begin{enumerate}
-\item A \emph{prediction-matched reference generator}: the $t_p$ Taylor predictor and a reference model with the same polynomial cancel exactly (time-shift property). We prove the construction is limited to order four and fix its poor damping by deviation feedback that preserves the cancellation.
+\item A precise account of the $t_p$ prediction: it supplies the future-motion information, and a two-input reference generator removes its time advance exactly. We prove that keeping the Taylor prediction inside the loop is possible only to order four, and test that alternative.
 \item An estimator order chosen to match the plant: the drive has relative degree three, so its exact inverse needs the third LOS derivative, which a jerk-state filter provides.
 \item A calibrated fire-now-or-wait rule over envelope-bounded maneuver classes.
-\item Statistically validated design decisions: paired Monte Carlo ablations with multiplicity correction, and stress-scenario noise ensembles.
+\item Statistically validated design decisions: paired Monte Carlo ablations with multiplicity correction, stress-scenario noise ensembles, and homotopy-guided adversarial engagements that search the directions that defeat the controller rather than random ones.
 \end{enumerate}
 
 % =====================================================================================
@@ -82,7 +82,7 @@ Fig.~\ref{fig:arch} shows the information flow. The radar returns $(r,\theta)$ e
 \draw[->] (plant) -- node[above]{$\theta$} (fire);
 \draw[->] (fire.south) -- ++(0,-0.45) node[below]{fire\_cmd};
 \end{tikzpicture}}
-\caption{Predictive-feedback architecture. The reference generator contains the predictor polynomial $A_3$, so the $t_p$ lead and the generator lag cancel.}
+\caption{Predictive-feedback architecture. The reference generator receives the $t_p$ prediction $r$ and the nowcast $\hat\theta$; its output returns to $\hat\theta$, while the feed-forward uses the predicted motion.}
 \label{fig:arch}
 \end{figure}
 
@@ -129,25 +129,32 @@ where $\D=d/dt$ and $t_p=0.5$\,s. This is the third-order truncation of $e^{st_p
 \section{Controller Design and Analysis}
 
 \subsection{Why Predict if the Laser Is Instantaneous?}
-A hit is judged between the beam and the target's \emph{current} position, so the turret must satisfy $\theta(t)\approx\theta_T(t)$. Any feedback loop lags a moving reference. Predicting $t_p$ ahead buys that lag back. Let the closed loop from reference to turret be $T(s)$. By the time-shift property of LTI systems the end-to-end map is $T(s)A_3(s)\approx T(s)e^{st_p}$, and perfect pointing requires $T(s)e^{st_p}=1$. Requiring the first $m$ terms of the error series of $1-T(s)A_3(s)$ to vanish is the classical error-coefficient design: $K_v=1/t_p$ at first order, and so on.
+A hit is judged between the beam and the target's \emph{current} position, so the turret must satisfy $\theta(t)\approx\theta_T(t)$. Pointing the beam $t_p$ ahead would miss by about $r|\dot\theta|t_p$, i.e.\ 37\,m at 1.5\,km and 0.05\,rad/s, against $\Reng=2$\,m. The prediction is nevertheless essential, for three reasons.
+\begin{enumerate}
+\item \emph{Lag.} A loop that sees only the target's present angle trails it: a type-1 loop lags a ramp by $\dot\theta/K_v$. Removing that lag needs the target's future motion. The Taylor prediction \eqref{eq:pred} carries exactly that information, the velocity, acceleration and jerk terms of the error series. Requiring $1-T(s)A_3(s)=O(s^4)$ is the classical error-coefficient design ($K_v=1/t_p$ at first order).
+\item \emph{Measurement loss.} During a blackout of up to 0.5\,s, the same length as $t_p$, the nowcast $\hat\theta(t)$ is itself a model prediction from the last radar update. Its quality decides whether the turret stays on target.
+\item \emph{Firing.} Each pulse blocks the next for 1\,s, so the fire-now-or-wait decision needs where the target will be relative to the beam over the coming window (Section~\ref{sec:fire}).
+\end{enumerate}
 
-\subsection{Prediction-Matched Reference Generator}
-We go further and make the cancellation exact by choosing the reference model to be $1/A_3(s)$:
-\begin{proposition}
-If $A_3(\D)\,y_d=r$ and $r=A_3(\D)\hat\theta$, then $A_3(\D)(y_d-\hat\theta)=0$, so $y_d\to\hat\theta$ with the poles of $A_3$, for any $t_p$.
-\end{proposition}
-In the LTI limit, prediction followed by a matched lag is therefore identical to tracking the nowcast. The horizon $t_p$ sets the reference dynamics, not the end-to-end transfer. This only makes sense if $1/A_n(s)$ is stable.
-\begin{lemma}
-The Taylor sections $A_n(s)=\sum_{k\le n}(t_ps)^k/k!$ are Hurwitz for $n\le4$ and unstable for $n\ge5$. Their least-damped root has $\zeta=1, 0.71, 0.36, 0.11$ for $n=1,\dots,4$.
-\end{lemma}
-(The roots scale with $1/t_p$; we verified them numerically for $n\le6$.) So a predictor-matched reference model exists only up to fourth order. At our order, $A_3$ has roots $-1.40\pm3.61j$ and $-3.19$: its $\zeta=0.36$ makes a 0.4\,rad acquisition slew overshoot by 46\,m. We therefore add \emph{deviation feedback}
+\subsection{Reference Generator: Using the Prediction's Information, Not Its Time Shift}
+The generator takes both the prediction $r$ and the nowcast $\hat\theta$:
 \begin{equation}
 (A_3+K)(\D)\,y_d=r+K(\D)\hat\theta,\qquad A_3(s)+K(s)=\tfrac{t_p^3}{6}(s+p)^3 .
 \label{eq:refgen}
 \end{equation}
-Subtracting \eqref{eq:pred} gives $(A_3+K)(\D)(y_d-\hat\theta)=0$. The cancellation survives, and the deviation dynamics become a triple pole at $-p$ ($p=20$\,rad/s, $K(s)=165.7+24.5s+1.125s^2$). We realise \eqref{eq:refgen} as a cascade with gains $(p/3,\,p,\,3p)$ whose intermediate rate and acceleration demands are saturated at 0.58\,rad/s and 2.5\,rad/s$^2$. In the small-deviation regime this is exactly linear, and during large acquisition slews it respects the voltage and current limits without the chatter that state clamping produced in our trials.
+\begin{proposition}
+With $r=A_3(\D)\hat\theta$, \eqref{eq:refgen} gives $(\D+p)^3(y_d-\hat\theta)=0$, so $y_d\to\hat\theta$ for any $t_p$.
+\end{proposition}
+The $t_p$ time advance is therefore removed exactly. What remains is the information: the generator outputs $y_d,\dots,\dddot y_d$, and $\dddot y_d$ inherits $\hat\theta'''$. The lag that the prediction exists to remove is instead cancelled by the exact plant inverse of Section~\ref{sec:ff}, which uses those derivatives, so $\theta=y_d\to\hat\theta$: the turret sits on the present estimate without lag. The deviation from the nowcast, caused only by each estimator correction, decays with a triple pole at $-p$ ($p=20$\,rad/s, $K(s)=165.7+24.5s+1.125s^2$).
+
+\emph{Keeping the prediction in the loop.} The alternative is $T=1/A_n$, so $T(s)A_n(s)=1$ exactly; its deviation poles are then the roots of $A_n$.
+\begin{lemma}
+The Taylor sections $A_n(s)=\sum_{k\le n}(t_ps)^k/k!$ are Hurwitz for $n\le4$ and unstable for $n\ge5$. Their least-damped root has $\zeta=1, 0.71, 0.36, 0.11$ for $n=1,\dots,4$.
+\end{lemma}
+More generally, a stable reference polynomial can match $e^{st_p}$ to order 4, or to order 5 with two extra free coefficients ($\zeta\le0.14$), and no further in practice. Keeping the velocity term exact ($p_1=t_p$) forces $\sum1/s_i=-t_p$, so a cubic's slowest pole decays no faster than $3/t_p=6$\,rad/s. Order four is therefore the hard ceiling on a loop that keeps the prediction, and it comes with slow, poorly damped poles: $A_3$ has roots $-1.40\pm3.61j$ and $-3.19$, and in our first prototype a 0.4\,rad slew overshot by 46\,m. Section~\ref{sec:inloop} tests this alternative against \eqref{eq:refgen}. We realise \eqref{eq:refgen} as a cascade with gains $(p/3,\,p,\,3p)$ whose intermediate rate and acceleration demands are saturated at 0.58\,rad/s and 2.5\,rad/s$^2$. In the small-deviation regime this is exactly linear, and during large acquisition slews it respects the voltage and current limits without the chatter that state clamping produced in our trials.
 
 \subsection{Feed-Forward and Feedback}
+\label{sec:ff}
 The reference generator supplies $y_d,\dot y_d,\ddot y_d,\dddot y_d$ without numerical differentiation. The plant has relative degree three, so its exact inverse
 \begin{equation}
 V_{ff}=G_p^{-1}(\D)y_d=0.32\,\dddot y_d+3.35\,\ddot y_d+1001.5\,\dot y_d
@@ -177,7 +184,8 @@ continuous & 4.10 & 68.5 & 16.1\\
 Because $y_d\to\hat\theta$ exactly, the transfer from radar noise to turret angle is the estimator's own, and loop bandwidth does not trade against noise. The deviation pole $p$ sets how fast each measurement correction is absorbed. Low $p$ lags maneuvers, high $p$ slows acquisition (Section~\ref{sec:ablation}). During a blackout the filter coasts. Its covariance grows like the jerk-model integral, and the worst-case drift is bounded by $\tfrac12a_{\max}t^2$ (2.5\,m at 0.5\,s), so no controller can guarantee a hit late in a long blackout. On recovery the first measurement collapses the covariance, and the reference generator absorbs the correction at $p=20$\,rad/s, without a step into the lightly damped drive.
 
 \subsection{Fire Control}
-For the estimated target and the measured turret angle, the signed beam-to-target cross-range offset $d$ is Gaussian with the filter's cross-range standard deviation $\sigma$. To hedge unmodeled maneuvers since the last radar sample (age $\tau$), we evaluate it for 17 maneuver classes: the nominal estimate plus constant accelerations of magnitude $a_{\max}/2$ and $a_{\max}$ in eight directions, each displaced by $\tfrac12(\mathbf a_i-\hat{\mathbf a})\tau^2$. This plays the role of the distinct hypotheses of \cite{degroot2024tmpc}. The hit probability is the mixture
+\label{sec:fire}
+For the estimated target and the measured turret angle, the signed beam-to-target cross-range offset $d$ is Gaussian with the filter's cross-range standard deviation $\sigma$. To hedge unmodeled maneuvers since the last radar sample (age $\tau$), we evaluate it for 17 maneuver classes: the nominal estimate plus constant accelerations of magnitude $a_{\max}/2$ and $a_{\max}$ in eight directions, each displaced by $\tfrac12(\mathbf a_i-\hat{\mathbf a})\tau^2$. The hit probability is the mixture
 \begin{equation}
 P_{\mathrm{hit}}=\sum_i w_i\Big[\Phi\Big(\tfrac{\Reng-d_i}{\sigma}\Big)-\Phi\Big(\tfrac{-\Reng-d_i}{\sigma}\Big)\Big],
 \end{equation}
@@ -219,21 +227,21 @@ Scenario & First hit [s] & Pulses hit & Pointing RMS [m]\\
 \label{fig:scenC}
 \end{figure}
 
-\subsection{Monte Carlo Performance}
-Over \mcN{} random engagements the design intercepted every target. The Wilson 95\% upper bound on the failure probability is \mcFailUB\% \cite{wilson1927}. \mcHit\% of \mcPulses{} pulses hit; the cluster-bootstrap 95\% CI is [\mcHitLo, \mcHitHi]\%, resampling whole engagements because pulses within one are correlated \cite{efron1993}. The median pulse miss distance was \mcMissMed\,m, and the 99th percentile \mcMissNinetyNine\,m. Interception took \mcFh\,s on average (CI [\mcFhLo, \mcFhHi]\,s; 95th percentile \mcFhNinetyFive\,s; maximum \mcFhMax\,s). It is acquisition-limited: the first-hit time correlates with the initial slew angle at Spearman $\rho=\mcRhoSlew$ (Fig.~\ref{fig:mc}), and not with maneuver intensity. Pointing accuracy, by contrast, degrades gracefully with maneuver intensity ($\rho=\mcRhoArms$ with RMS target acceleration; median RMS \mcRms\,m; \mcInR\% of the time within $\Reng$). After acquisition, the median pointing error settles near 0.35\,m and the 90th percentile stays below 1\,m (Fig.~\ref{fig:bands}). That is the size of the estimation error itself, as the cancellation argument predicts. Peak voltage was \mcVpk\,V.
-
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
-\includegraphics[width=0.85\columnwidth]{figures/mc_error_bands.pdf}
-\caption{Cross-range pointing error over 300 logged random engagements: median, 90th and 99th percentiles.}
-\label{fig:bands}
-\end{figure}
+\includegraphics[width=0.85\textwidth]{figures/mc_ablation_forest.pdf}
+\caption{Paired one-factor ablations against the final design (500 seeds). Points: mean paired difference with 95\% bootstrap CI; filled when the Holm-adjusted $p<0.05$. Right: missed pulses.}
+\label{fig:forest}
+\end{figure*}
 
-Fig.~\ref{fig:blackout} aligns \nBlackouts{} blackouts. Pointing error peaks at a median of about 0.8\,m about 0.35\,s after onset and recovers within about 0.4\,s. Two checks show the probabilities behind the firing rule are honest. The normalised estimation error has $E[z^2]=\ezTrack$ while tracking (ideal 1) and \ezCoast{} while coasting, and the observed hit frequency follows the predicted $P_{\mathrm{hit}}$ (Brier score \brier), conservatively in mid-range bins (Fig.~\ref{fig:calib}).
+\subsection{Monte Carlo Performance}
+Over \mcN{} random engagements the design intercepted every target. The Wilson 95\% upper bound on the failure probability is \mcFailUB\% \cite{wilson1927}. \mcHit\% of \mcPulses{} pulses hit; the cluster-bootstrap 95\% CI is [\mcHitLo, \mcHitHi]\%, resampling whole engagements because pulses within one are correlated \cite{efron1993}. The median pulse miss distance was \mcMissMed\,m, and the 99th percentile \mcMissNinetyNine\,m. Interception took \mcFh\,s on average (CI [\mcFhLo, \mcFhHi]\,s; 95th percentile \mcFhNinetyFive\,s; maximum \mcFhMax\,s). It is acquisition-limited: the first-hit time correlates with the initial slew angle at Spearman $\rho=\mcRhoSlew$ (Fig.~\ref{fig:mc}), and not with maneuver intensity. Pointing accuracy, by contrast, degrades gracefully with maneuver intensity ($\rho=\mcRhoArms$ with RMS target acceleration; median RMS \mcRms\,m; \mcInR\% of the time within $\Reng$). After acquisition, the median pointing error settles near 0.35\,m and the 90th percentile stays below 1\,m over 300 logged engagements. That is the size of the estimation error itself, as $y_d\to\hat\theta$ predicts. Peak voltage was \mcVpk\,V.
+
+Fig.~\ref{fig:blackout} aligns \nBlackouts{} blackouts. Pointing error peaks at a median of about 0.8\,m about 0.35\,s after onset and recovers within about 0.4\,s. Two checks show the probabilities behind the firing rule are honest. The normalised estimation error has $E[z^2]=\ezTrack$ while tracking (ideal 1) and \ezCoast{} while coasting, and the observed hit frequency follows the predicted $P_{\mathrm{hit}}$ (Brier score \brier{} over about 270\,000 controller samples), conservatively in mid-range bins.
 
 \begin{figure*}[t]
 \centering
-\includegraphics[width=0.78\textwidth]{figures/mc_first_hit.pdf}
+\includegraphics[width=0.7\textwidth]{figures/mc_first_hit.pdf}
 \caption{Interception time over the Monte Carlo campaign. (a) ECDFs for the final design, a 20\,Hz controller and a turret starting at $60^\circ$. (b) First-hit time against the initial slew angle; the dashed line is a pure slew at the 0.58\,rad/s limit.}
 \label{fig:mc}
 \end{figure*}
@@ -245,13 +253,6 @@ Fig.~\ref{fig:blackout} aligns \nBlackouts{} blackouts. Pointing error peaks at 
 \label{fig:blackout}
 \end{figure}
 
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.85\columnwidth]{figures/mc_calibration.pdf}
-\caption{Reliability of the predicted hit probability over about 270\,000 controller samples (Wilson 95\% intervals; sample count per bin).}
-\label{fig:calib}
-\end{figure}
-
 \subsection{Design Decisions under Paired Statistics}
 \label{sec:ablation}
 Each design choice was tested as a one-factor change on the same 500 seeds as the final design, so trajectory, blackouts and noise are paired. We used Wilcoxon signed-rank tests for timing and pointing \cite{wilcoxon1945}, a sign-flip permutation test for missed pulses, and Holm correction over the 11 comparisons \cite{holm1979}. The results (Fig.~\ref{fig:forest}):
@@ -259,7 +260,7 @@ Each design choice was tested as a one-factor change on the same 500 seeds as th
 \item A constant-velocity filter (order 2) is decisively worse: pointing RMS $+\abOtwoRms$\,m, missed pulses \abOtwoMiss, and \abOtwoLost{} interceptions lost.
 \item A slower deviation pole ($p=10$) delays interception by \abPtenFh\,s. A faster one ($p=30$) gains only $\abPthirtyRms$\,m RMS but delays interception by \abPthirtyFh\,s.
 \item The ambush hold from our early design (park the beam where every maneuver class must cross) worsens pointing by \abAmbRms\,m without gaining hits, so it was rejected.
-\item Class re-identification at blackout recovery had no measurable effect; the Kalman update with the coasted covariance already does that job.
+\item Class re-identification at blackout recovery had no measurable effect (misses \noreidMiss{} over 1\,000 seeds); the Kalman update with the coasted covariance already does that job.
 \end{itemize}
 
 Estimator order needs both test sets:
@@ -270,12 +271,29 @@ Estimator order needs both test sets:
 \end{itemize}
 Since a hidden case is likelier to be jerky than smooth, we keep order 4. We also tested a stricter instant-fire threshold of 0.999. It delayed interception by \stPsureFh\,s ($p=\stPsureP$) with no change in misses (\stPsureMiss), so the final design uses 0.99.
 
-\begin{figure*}[t]
+
+
+\subsection{Prediction in the Loop, and Homotopy-Guided Adversaries}
+\label{sec:inloop}
+\emph{Adversary.} Random maneuvers rarely probe the controller's weak directions, so we also generated engagements by homotopy class, following \cite{degroot2024tmpc}. In the plane of time and the target's signed cross-range offset from the beam, the obstacles are the firing events $\{t_k\}\times[-\Reng,\Reng]$. A target path's class is the side on which it passes each event (above, through, below). For each of \hgN{} base engagements we find the frozen design's firing times, then reverse the target's normal acceleration at $a_{\max}$ (finite jerk) just before each shot toward the side its class requires (above, below, crossing either way, alternating). The lead time is chosen to maximise the miss, and the envelope is enforced. The misses do follow the attacked side. The adversary is still weak: 63\% of cases left every pulse hitting.
+
+\emph{Results.} Table~\ref{tab:inloop} compares reference laws that keep the Taylor prediction in the loop with \eqref{eq:refgen}. Every design intercepted all random and all adversarial engagements. Keeping the prediction costs 0.4--4.4\,m of pointing accuracy on random engagements and more misses there. Under attack its slow poles miss less per pulse, because the 20\,rad/s design follows each estimator correction. But the slow designs are on target less of the time and shoot less, so \eqref{eq:refgen} still delivers the most hits. It also does so when the adversary is re-tuned against each alternative. A homotopy-class fire planner (Eq.~12 plan consistency of \cite{degroot2024tmpc}) did not change misses significantly (\homMiss{} random, \homHgMiss{} adversarial), so the mixture rule stays.
+
+\begin{table}[t]
 \centering
-\includegraphics[width=0.92\textwidth]{figures/mc_ablation_forest.pdf}
-\caption{Paired one-factor ablations against the final design (500 seeds). Points: mean paired difference with 95\% bootstrap CI; filled when the Holm-adjusted $p<0.05$. Right: missed pulses.}
-\label{fig:forest}
-\end{figure*}
+\caption{Reference laws on \mcN{} random (MC) and \hgN{} adversarial (HG) engagements}
+\label{tab:inloop}
+\setlength{\tabcolsep}{3.5pt}
+\begin{tabular}{lcccc}
+\toprule
+& \multicolumn{2}{c}{MC} & \multicolumn{2}{c}{HG}\\
+\cmidrule(lr){2-3}\cmidrule(l){4-5}
+Reference law & RMS [m] & misses & miss [\%] & hits\\
+\midrule
+\researchRows
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Controller Rate}
 Run on 24 cases per rate from 20\,Hz to 5\,kHz, the controller intercepted every target. Performance saturates near 200\,Hz. At 20\,Hz the mean first hit rises to \tzFh\,s, with \tzHit\% of pulses hitting over 500 Monte Carlo runs. The MATLAB controller costs 0.51\,ms per call, so we recommend 100\,Hz--1\,kHz and a plant step of $\le1$\,ms.
@@ -285,17 +303,17 @@ Run on 24 cases per rate from 20\,Hz to 5\,kHz, the controller intercepted every
 \label{sec:final}
 The evaluation cases are hidden, so the design was frozen beforehand and its expected behaviour on unseen admissible cases rests on three lines of our own evidence.
 \begin{itemize}
-\item \emph{Interception.} Across \pooledN{} distinct engagements at nominal settings it never failed to intercept, bounding the failure probability below \pooledFail\% (95\%, Wilson). These comprise Monte Carlo at 100 and 20\,Hz and from a $60^\circ$ start, plus the stress ensembles at 100 and 20\,Hz.
+\item \emph{Interception.} All \mcN{} independent random engagements were intercepted, bounding the failure probability below \mcFailUB\% (one-sided 97.5\%, Wilson). Runs that reuse those seeds (20\,Hz, $60^\circ$ start) or replicate the stress scenarios with new noise (\otherN{} in all) are not pooled into the bound; all were intercepted, as were the \hgN{} adversarial engagements and \pertOK{} engagements with $R$, $L$, $J_{eq}$ and $b$ each perturbed within $\pm20\%$ (\pertMiss{} misses in \pertPulses{} pulses).
 \item \emph{Interception time is predictable from geometry.} A fit gives $t_{\mathrm{hit}}\approx\slewA+\slewB\,\Delta\theta_0$\,s, with $\Delta\theta_0$ the initial slew in degrees ($R^2=\slewR$, $\pm\slewPI$\,s at 95\%). The slope matches the 0.58\,rad/s slew limit, and the worst admissible slew ($95^\circ$) predicts \slewWorst\,s.
 \item \emph{Independence from the evaluation script.} We tried \ifVariants{} plausible calling conventions: held or stale measurements re-asserted as valid, irregular radar timing at steps that do not divide 50\,ms, random initial turret angles, forward-Euler plant integration, and 1\,kHz calls. All \ifOK{} of \ifN{} engagements were intercepted, with at least \ifHitMin\% of pulses hitting.
 \end{itemize}
-The evidence does not extend to jerk beyond about 450\,m/s$^3$, blackouts longer than 0.5\,s, or a plant that differs from the specified model; for the last, robustness rests on the margins of Table~\ref{tab:margins}.
+The evidence does not extend to jerk beyond about 450\,m/s$^3$, blackouts longer than 0.5\,s, or plant errors beyond $\pm20\%$; for the last, robustness rests on the margins of Table~\ref{tab:margins}.
 
 % =====================================================================================
 \section{Conclusions}
-Treating the prescribed prediction horizon as a lag to be cancelled, rather than a lead to be applied, turns the Guardian problem into a matched pair of LTI blocks. A Taylor predictor and a reference generator with the same polynomial cancel exactly. The construction is bounded at fourth order by the stability of the Taylor sections, and its damping is restored by deviation feedback. A jerk-state estimator then supplies exactly the derivatives that the relative-degree-three plant inverse needs, leaving a simple, well-margined PI loop. The frozen design intercepted every one of \pooledN{} admissible engagements, including adversarial maneuvers inside radar blackouts. The calibrated firing rule wasted almost no pulses, and the behaviour did not depend on how an evaluation script delivers measurements.
+An instantaneous laser must point at the target's present position, so the prescribed $t_p$ prediction cannot lead the beam. Its value is the future-motion information it carries. A two-input reference generator removes its time advance exactly, and a jerk-state estimator supplies the derivatives that the relative-degree-three plant inverse needs to remove the turret's lag, leaving a simple, well-margined PI loop. Keeping the Taylor prediction itself inside the loop is bounded at fourth order by the stability of the Taylor sections, forces slow deviation poles, and measurably costs accuracy and hits. The frozen design intercepted every random, adversarial and plant-perturbed engagement we tested.
 
-Three limitations apply. Interception time is bounded by turret slew kinematics. Pulses fired late in a long blackout cannot be guaranteed. And the feed-forward relies on an accurate plant model, with robustness to model error resting on the feedback margins rather than on demonstrated tests.
+Three limitations apply. Interception time is bounded by turret slew kinematics. Pulses fired late in a long blackout cannot be guaranteed. And under an adversary that times maneuvers to the shots, the fast deviation poles raise the per-pulse miss rate to \hgMissRate\%, although no engagement was lost.
 
 \bibliographystyle{IEEEtran}
 \bibliography{refs}

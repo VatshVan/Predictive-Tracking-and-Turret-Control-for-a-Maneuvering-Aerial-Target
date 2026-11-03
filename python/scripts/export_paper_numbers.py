@@ -101,22 +101,19 @@ def main():
         'stPsureMiss': f"{cps['misses_base']}$\\to${cps['misses_var']}",
     }
 
-    # generalisation evidence: pooled nominal-setting engagements, slew model, interface study
+    # generalisation evidence: the failure bound uses the 1000 independent MC runs only; runs that
+    # reuse those seeds (20 Hz, 60 deg start) or are noise replicas (stress ensembles) are reported
+    # as a count, not pooled. Then the slew model and the interface study.
     D = S['describe']
-    pooled = [(D[t]['n'], D[t]['success']) for t in ('S_final', 'S_rate20', 'S_theta60')]
-    pooled += [(ST['summary'][t]['n'], ST['summary'][t]['success']) for t in ('final', 'final_20Hz')]
-    n_pool = sum(n for n, _ in pooled)
-    k_pool = sum(k for _, k in pooled)
-    z = 1.959964
-    fail_ub = (z * z / (2 * n_pool) + z * math.sqrt(z * z / (4 * n_pool ** 2))) / (1 + z * z / n_pool) \
-        if k_pool == n_pool else float('nan')
+    other = [(D[t]['n'], D[t]['success']) for t in ('S_rate20', 'S_theta60')]
+    other += [(ST['summary'][t]['n'], ST['summary'][t]['success']) for t in ('final', 'final_20Hz')]
     slew = np.array([f['slew_deg'] for f in feats])
     fh_arr = np.array(fh, dtype=float)
     A = np.vstack([np.ones_like(slew), slew]).T
     coef = np.linalg.lstsq(A, fh_arr, rcond=None)[0]
     res = fh_arr - A @ coef
-    N.update(pooledN=f'{n_pool:,}'.replace(',', '\\,'), pooledOK=f'{k_pool:,}'.replace(',', '\\,'),
-             pooledFail=f'{100 * fail_ub:.2f}',
+    N.update(otherN=f"{sum(n for n, _ in other):,}".replace(',', '\\,'),
+             otherOK=f"{sum(k for _, k in other):,}".replace(',', '\\,'),
              slewA=f'{coef[0]:.2f}', slewB=f'{coef[1]:.4f}', slewR=f'{1 - res.var() / fh_arr.var():.2f}',
              slewPI=f'{1.96 * res.std(ddof=2):.2f}', slewWorst=f'{coef[0] + coef[1] * 95:.1f}')
     ipath = os.path.join(HERE, '..', 'results', 'interface_robustness.json')
@@ -127,6 +124,30 @@ def main():
                  ifOK=f"{sum(s['success'] for s in IS.values()):,}".replace(',', '\\,'),
                  ifHitMin=f"{100 * min(s['hit_rate'] for s in IS.values()):.2f}",
                  ifVariants=len(IS))
+
+    # research campaign (docs/research_lemma_homotopy.md): MC0-999 and HG0-999 per reference law
+    research_rows = []
+    rpath = os.path.join(RES, 'research', 'research_stats.json')
+    if os.path.exists(rpath):
+        with open(rpath) as f:
+            R = json.load(f)
+        mc, hg = R['MC']['describe'], R['HG']['describe']
+        f_hg = hg['final']
+        N.update(hgN=f_hg['n'], hgOK=f_hg['success'], hgHit=f"{100 * f_hg['pulse_hit_rate']:.1f}",
+                 hgMissRate=f"{100 * f_hg['misses'] / f_hg['pulses']:.1f}",
+                 pertOK=mc['final_pert']['success'], pertMiss=mc['final_pert']['misses'],
+                 pertPulses=f"{mc['final_pert']['pulses']:,}".replace(',', '\\,'),
+                 pertRms=f"{mc['final_pert']['rms_median']:.2f}",
+                 homMiss=f"{mc['final']['misses']}$\\to${mc['homotopy']['misses']}",
+                 homHgMiss=f"{f_hg['misses']}$\\to${hg['homotopy']['misses']}",
+                 homP=f"{R['MC']['paired']['homotopy vs final']['p_miss_holm']:.1f}",
+                 noreidMiss=f"{mc['final']['misses']}$\\to${mc['noreid']['misses']}")
+        for tag, lab in (('final', 'Frozen ($-20$ triple)'), ('contact1', 'Contact order 1'),
+                         ('exact3', 'Exact Taylor $n{=}3$'), ('mm', 'Moment-matched'),
+                         ('exact4', 'Exact Taylor $n{=}4$')):
+            m, h = mc[tag], hg[tag]
+            research_rows.append(f"{lab} & {m['rms_median']:.2f} & {m['misses']} & "
+                                 f"{100 * h['misses'] / h['pulses']:.2f} & {h['pulses'] - h['misses']}\\\\")
 
     rows = []
     with open(os.path.join(HERE, '..', 'results', 'scenarios.txt')) as f:
@@ -140,6 +161,7 @@ def main():
         for k, v in N.items():
             f.write(f'\\newcommand{{\\{k}}}{{{v}}}\n')
         f.write('\\newcommand{\\scenarioRows}{%\n' + '\n'.join(rows) + '}\n')
+        f.write('\\newcommand{\\researchRows}{%\n' + '\n'.join(research_rows) + '}\n')
         note = ('\\\\\\textcolor{red}{PRELIMINARY DRAFT: numbers from the previous run '
                 '(instant-fire threshold 0.999); final numbers pending}') if a.draft else ''
         f.write('\\newcommand{\\draftnote}{' + note + '}\n')
