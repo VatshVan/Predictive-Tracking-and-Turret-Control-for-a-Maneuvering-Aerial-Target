@@ -11,6 +11,8 @@ Scenario identifiers
   'D5'  combined: weave + late blackout + close range
   'D6'  jerk test: near bang-bang acceleration reversals
   'MC<seed>'  random admissible trajectory and blackout pattern (e.g. 'MC17')
+  'HG<seed>'  closed-loop adversary in homotopy class seed % 5 against the final design
+  'HX<target>_<seed>'  the same adversary tuned against another design (homotopy.TARGETS)
 
 Every trajectory is generated once on a 1 ms grid, checked against the operating
 envelope (800 <= r <= 2000 m, |v| <= 150 m/s, |a| <= 20 m/s^2) and cached.
@@ -25,6 +27,7 @@ DT_GRID = 1e-3
 T_GRID_END = P.T_END + 1.0
 
 _CACHE = {}
+_PROBE = None
 
 
 def _smooth(tau):
@@ -86,6 +89,15 @@ def _scenario_def(scenario):
         return dict(p0=(1750.0, 850.0), v0=(-125.0, 0.0), accel=accel, blackouts=[])
     if isinstance(scenario, str) and scenario.startswith('MC'):
         return _monte_carlo_def(int(scenario[2:]))
+    if scenario == '__hg_probe__':
+        return dict(_PROBE)                     # candidate trajectory of the HG adversary search
+    if isinstance(scenario, str) and scenario.startswith('HX'):
+        from .homotopy import hg_def
+        target, _, seed = scenario[2:].rpartition('_')
+        return hg_def(int(seed), target)
+    if isinstance(scenario, str) and scenario.startswith('HG'):
+        from .homotopy import hg_def
+        return hg_def(int(scenario[2:]))
     raise ValueError(f"unknown scenario {scenario!r}")
 
 
@@ -194,6 +206,10 @@ def _get(scenario):
     n_ticks = int(round(T_GRID_END / P.DT_RADAR)) + 1
     if base.startswith('MC'):
         seed = int(base[2:]) + 10007
+    elif base.startswith('HG'):
+        seed = int(base[2:]) + 50021
+    elif base.startswith('HX'):
+        seed = int(base.rpartition('_')[2]) + 50021      # same noise as HG<seed>
     else:
         seed = sum(ord(c) * 131**k for k, c in enumerate(base)) % (2**32)
     if rep:

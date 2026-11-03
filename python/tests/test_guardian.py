@@ -101,3 +101,102 @@ def test_standard_scenarios_intercept(f_ctrl):
 def test_euler_plant_integration_at_1ms():
     m = run('B', f_ctrl=100.0, integrator='euler')['metrics']
     assert m['success']
+
+
+def test_los_fourth_derivative_matches_finite_differences():
+    x, y = 1200.0, 600.0
+    d = dict(vx=-110.0, vy=15.0, ax=8.0, ay=-12.0, jx=30.0, jy=20.0, sx=-40.0, sy=25.0)
+
+    def theta(s):
+        px = x + d['vx'] * s + d['ax'] * s ** 2 / 2 + d['jx'] * s ** 3 / 6 + d['sx'] * s ** 4 / 24
+        py = y + d['vy'] * s + d['ay'] * s ** 2 / 2 + d['jy'] * s ** 3 / 6 + d['sy'] * s ** 4 / 24
+        return math.atan2(py, px)
+
+    st = np.array([x, d['vx'], d['ax'], d['jx'], d['sx'], y, d['vy'], d['ay'], d['jy'], d['sy']])
+    th4 = tc._los(st, 5, nd=4)[5]
+    h = 1e-2
+    fd4 = (theta(2 * h) - 4 * theta(h) + 6 * theta(0) - 4 * theta(-h) + theta(-2 * h)) / h ** 4
+    assert th4 == pytest.approx(fd4, rel=1e-3)
+
+
+@pytest.mark.parametrize('kw, hurwitz', [
+    (dict(ref_mode='exact_taylor', ref_n=3), True),
+    (dict(ref_mode='exact_taylor', ref_n=4, order=5), True),
+    (dict(ref_mode='exact_taylor', ref_n=5, order=6), False),
+    (dict(ref_mode='moment_matched'), True),
+    (dict(ref_mode='contact'), True),
+    (dict(ref_mode='contact', ref_poly=(1.0, 0.5, 0.125, 1 / 64, 1 / 1024)), True),
+])
+def test_exact_reference_models(kw, hurwitz):
+    saved = dict(tc.CFG)
+    try:
+        tc.CFG.update(kw)
+        S = tc._init(0.0, 0.0)
+        n = len(S['A_m']) - 1
+        if kw['ref_mode'] == 'contact':
+            # contact order k = number of leading coefficients shared with A_3, minus one
+            k = len(kw.get('ref_poly', tc.DEFAULT_CFG['ref_poly'])) - 3
+            n = k
+        # T A_n = 1 + O(s^(contact order + 1)): Q agrees with A_n up to the contact order
+        assert S['D'][:n + 1] == pytest.approx(S['A_m'][:n + 1])
+        assert bool(np.all(np.roots(S['D'][::-1]).real < 0)) == hurwitz
+    finally:
+        tc.CFG.clear()
+        tc.CFG.update(saved)
+
+
+def test_homotopy_signature_and_classes():
+    from guardian.homotopy import class_signs, classify, signature
+    assert list(signature([3.0, 1.0, -0.5, -2.5])) == [1, 0, 0, -1]
+    for cls in range(5):
+        assert classify(class_signs(cls, 6)) == cls      # each intended class is distinct
+    assert classify([0, 0, 0]) == -1                      # every event passed through: all hits
+    assert classify([1, 0, -1]) == 2                      # 'through' events do not change the class
+    assert list(tc._h_signature([2.5, -2.5, 0.0])) == [tc.H_ABOVE, tc.H_BELOW, tc.H_THROUGH]
+
+
+def test_homotopy_planner_probabilities():
+    saved = dict(tc.CFG)
+    try:
+        tc.CFG.update(phit_mode='homotopy')
+        tc.reset()
+        run('A', f_ctrl=100.0, t_end=3.0)
+        S = tc._S
+        taus, P_thr, sgn, w, sig, rng = tc._h_plan(S, S['t_prev'], math.atan2(S['x'][S['n']], S['x'][0]), 0.5)
+        assert taus[0] == 0.0 and len(taus) == 11
+        assert np.all((P_thr >= 0.0) & (P_thr <= 1.0))
+        assert w.sum() == pytest.approx(1.0) and sgn.shape == (len(w), len(taus))
+    finally:
+        tc.CFG.clear()
+        tc.CFG.update(saved)
+
+
+def test_blend_interpolates_reference_polynomials():
+    saved = dict(tc.CFG)
+    try:
+        polys = {}
+        for a in (0.0, 0.5, 1.0):
+            tc.CFG.update(ref_mode='blend', blend_a=a)
+            polys[a] = np.array(tc._init(0.0, 0.0)['D'])
+        A3 = np.array([P.TP ** k / math.factorial(k) for k in range(4)])
+        assert polys[0.0] == pytest.approx(A3)
+        assert polys[0.5] == pytest.approx(0.5 * (polys[0.0] + polys[1.0]))
+        assert np.roots(polys[1.0][::-1]).real == pytest.approx([-20.0] * 3, abs=1e-3)
+    finally:
+        tc.CFG.clear()
+        tc.CFG.update(saved)
+
+
+@pytest.mark.parametrize('kw', [dict(ref_mode='exact_taylor', ref_n=3), dict(ref_mode='moment_matched'),
+                                dict(ref_mode='blend', blend_a=0.3), dict(phit_mode='homotopy')])
+def test_research_modes_intercept(kw):
+    saved = dict(tc.CFG)
+    try:
+        tc.CFG.update(kw)
+        for s in ['A', 'C']:
+            m = run(s, f_ctrl=100.0)['metrics']
+            assert m['success'], (kw, s, m)
+            assert m['V_peak'] <= 600.0 + 1e-9
+    finally:
+        tc.CFG.clear()
+        tc.CFG.update(saved)

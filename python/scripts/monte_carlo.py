@@ -2,6 +2,8 @@
 
 python scripts/monte_carlo.py --n 300 --f-ctrl 100 --tag baseline
 python scripts/monte_carlo.py --n 300 --set use_reid=False --tag no_reid
+python scripts/monte_carlo.py --n 1000 --prefix HG --set ref_mode=exact_taylor --out results/research --tag HG_exact3
+--perturb-plant draws R, L, J_eq and b independently in +-20 % per seed (controller stays nominal).
 """
 import argparse
 import json
@@ -15,6 +17,7 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from guardian import turret_controller as tc  # noqa: E402
+from guardian import turret_plant as tp  # noqa: E402
 from guardian.sim import run  # noqa: E402
 from guardian.target_motion_generator import _get  # noqa: E402
 
@@ -24,23 +27,45 @@ RESULTS = os.path.join(os.path.dirname(__file__), '..', 'results')
 def _parse_value(v):
     if v in ('True', 'False'):
         return v == 'True'
+    if v.startswith('(') and v.endswith(')'):
+        return tuple(float(x) for x in v[1:-1].split(','))
     try:
         return int(v)
     except ValueError:
-        return float(v)
+        try:
+            return float(v)
+        except ValueError:
+            return v
+
+
+PLANT_NOM = dict(R=tp.R, L=tp.L, J_EQ=tp.J_EQ, B=tp.B)
+
+
+def _perturb_plant(seed, on):
+    rng = np.random.default_rng(770000 + seed)
+    f = {k: (rng.uniform(0.8, 1.2) if on else 1.0) for k in PLANT_NOM}
+    for k, v in PLANT_NOM.items():
+        setattr(tp, k, v * f[k])
+    return f
 
 
 def _one(job):
-    seed, f_ctrl, overrides, theta0 = job
+    seed, f_ctrl, overrides, theta0, prefix, perturb = job
     tc.CFG.update(overrides)
-    scenario = f'MC{seed}'
+    scenario = f'{prefix}{seed}'
+    factors = _perturb_plant(seed, perturb)
     o = run(scenario, f_ctrl=f_ctrl, theta0=theta0)
     m = o['metrics']
     m['seed'] = seed
+    dbg = tc.get_debug() or {}
+    m['n_proj'] = int(dbg.get('n_proj', 0))
+    m['n_wait'] = int(dbg.get('n_wait', 0))
+    if perturb:
+        m['plant_factors'] = factors
     pulses = []
     for p in o['pulses']:
         k = int(round(p['t'] * f_ctrl))
-        pulses.append((p['t'], p['miss'], float(o['p_hit'][k]), str(o['mode'][k])))
+        pulses.append((p['t'], p['miss'], float(o['p_hit'][k]), str(o['mode'][k]), p['offset']))
     m['pulses'] = pulses
     m['features'] = path_features(scenario, theta0)
     return m
@@ -99,17 +124,22 @@ def main():
     ap.add_argument('--theta0-deg', type=float, default=0.0)
     ap.add_argument('--set', nargs='*', default=[], help='controller overrides key=value')
     ap.add_argument('--tag', default='baseline')
+    ap.add_argument('--prefix', default='MC', help="scenario family: 'MC' or 'HG'")
+    ap.add_argument('--out', default=RESULTS)
+    ap.add_argument('--perturb-plant', action='store_true')
     ap.add_argument('--workers', type=int, default=max(1, (os.cpu_count() or 2) - 1))
     a = ap.parse_args()
     overrides = {k: _parse_value(v) for k, v in (s.split('=', 1) for s in a.set)}
-    jobs = [(s, a.f_ctrl, overrides, np.deg2rad(a.theta0_deg)) for s in range(a.start, a.start + a.n)]
+    jobs = [(s, a.f_ctrl, overrides, np.deg2rad(a.theta0_deg), a.prefix, a.perturb_plant)
+            for s in range(a.start, a.start + a.n)]
     t0 = time.time()
     with Pool(a.workers) as pool:
         rows = pool.map(_one, jobs, chunksize=4)
     summ = summarize(rows)
-    summ.update(tag=a.tag, f_ctrl=a.f_ctrl, overrides=overrides, wall_s=round(time.time() - t0, 1))
-    os.makedirs(RESULTS, exist_ok=True)
-    with open(os.path.join(RESULTS, f'mc_{a.tag}.json'), 'w') as f:
+    summ.update(tag=a.tag, f_ctrl=a.f_ctrl, overrides=overrides, prefix=a.prefix,
+                perturb_plant=a.perturb_plant, wall_s=round(time.time() - t0, 1))
+    os.makedirs(a.out, exist_ok=True)
+    with open(os.path.join(a.out, f'mc_{a.tag}.json'), 'w') as f:
         json.dump(dict(summary=summ, runs=rows), f, indent=1, default=float)
     print(json.dumps(summ, indent=1))
 

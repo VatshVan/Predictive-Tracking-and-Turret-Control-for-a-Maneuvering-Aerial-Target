@@ -72,7 +72,9 @@ def run(scenario, f_ctrl=1000.0, dt_plant=1e-3, integrator='rk4', theta0=0.0,
         x, y = target_truth(t, scenario)[:2]
         if fire == 1 and fire_prev == 0 and t - t_pulse >= P.T_RECHARGE - 1e-9:
             miss = beam_miss_distance(s[0], x, y)
-            pulses.append(dict(t=t, miss=miss, hit=miss <= P.R_ENG))
+            # signed cross-range offset of the target from the beam (positive = above)
+            off = y * math.cos(s[0]) - x * math.sin(s[0])
+            pulses.append(dict(t=t, miss=miss, hit=miss <= P.R_ENG, offset=float(off)))
             t_pulse = t
         fire_prev = fire
         if log:
