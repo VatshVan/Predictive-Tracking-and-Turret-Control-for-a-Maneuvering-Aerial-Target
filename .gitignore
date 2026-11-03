@@ -35,3 +35,5 @@ docs/report/*.log
 docs/report/*.toc
 docs/report/*.out
 docs/report/*.pdf
+docs/report/*.bbl
+docs/report/*.blg
