@@ -137,6 +137,12 @@ realized the intended class, even with full knowledge of the shot timing. Where 
 does miss, the side follows the attack: "above" seeds miss 38 above vs 4 below, and "below"
 seeds miss 1 above vs 31 below.
 
+**What this adversary is and is not.** The homotopy classes do steer the search: the side of
+the misses follows the intended class. But the adversary is weak, and most engagements still
+end with every pulse "through". The HG family is therefore worst-case evidence about where
+misses come from. It is not a Monte Carlo that reliably finds failures, and it does not
+estimate a failure probability.
+
 ## 5. Results: MC0–999 (random engagements; the failure bound)
 
 1000 independent seeds; the controller runs at 100 Hz and the plant uses RK4 at 1 ms. Every
@@ -161,11 +167,14 @@ configuration intercepts **1000/1000**. The final design's failure probability i
 | Final design, plant ±20 % | 0.557 | 6 / 9190 | 99.40 % | 0 | 4 → 6 (1) |
 
 - **First-hit time.** All blends and contact order 1 hit 3–9 ms earlier (significant). Exact4,
-  contact2 and moment-matched hit 30–80 ms later. The homotopy planner hits 19 ms earlier.
+  contact2 and moment-matched hit 30–83 ms later. The homotopy planner hits 19 ms earlier.
 - **Homotopy planner activity.** It waited at least once in 18 % of runs.
 - **Envelope projection.** It fires in 44 % of runs for every order-4 design. The order-5
   estimator (exact4) is projected about 36 times per run: its acceleration estimate overshoots
-  1.15 × 20 m/s². Its tuning was not optimized, so its numbers are pessimistic.
+  1.15 × 20 m/s².
+- **exact4 tuning.** exact4 runs with a retuned estimator, `sigma_top=150, tau_top=0.2` (snap
+  model; see `scripts/run_research.sh`). Every other design uses the default order-4 estimator.
+  This tuning was not optimized, so the exact4 numbers are pessimistic.
 
 ## 6. Results: HG0–999 (closed-loop adversary tuned against the final design)
 
@@ -184,10 +193,29 @@ Worst-case evidence, kept separate from the failure bound. Every configuration i
 | Exact Taylor n = 3 | 74 / 7876 | 0.70 m | 3.834 | 244 → 74 (0.0006) |
 | Exact Taylor n = 4 | 29 / 7488 | 0.82 m | 6.263 | 244 → 29 (0.0006) |
 
-Under this adversary the ranking flips. The slow-pole designs miss 60–88 % fewer pulses. The
-likely mechanism: the 20 rad/s deviation loop chases every estimator correction, so the lag the
-adversary induces is converted into beam motion right at the shot. Slow poles smooth these
-corrections out.
+Under this adversary the **per-pulse miss rate** ranking flips: the slow-pole designs miss
+60–88 % fewer pulses. The likely mechanism: the 20 rad/s deviation loop chases every estimator
+correction, so the lag the adversary induces is converted into beam motion right at the shot.
+Slow poles smooth these corrections out.
+
+The miss rate is not the whole picture. The slow-pole designs fire fewer pulses, because their
+beam is inside R_eng far less of the time (time in R_eng 26–65 % vs 93 %) and the hit-probability
+gate holds the shot back. Counted as **hits delivered**, the final design is still best:
+
+| Design | Hits delivered (pulses − misses) | Time in R_eng |
+|---|---|---|
+| Final design | **8901** | 93.4 % |
+| Homotopy fire planner | 8944 | 93.4 % |
+| Contact order 1 | 8515 | 64.7 % |
+| Blend α = 0.05 | 8386 | 51.9 % |
+| Contact order 2 | 8116 | 46.8 % |
+| Exact Taylor n = 3 | 7802 | 55.2 % |
+| Moment-matched | 7776 | 29.4 % |
+| Exact Taylor n = 4 | 7459 | 26.2 % |
+
+The slow designs look robust because the firing gate refuses doubtful shots, not because they
+point better. Time to first hit, the quantity that decides an interception, is the same within
+about 50 ms for all of them.
 
 The adversary in this table was tuned against the final design only. §7 checks whether the
 advantage survives an adversary tuned against each design itself.
@@ -226,26 +254,38 @@ Findings:
     advantage over the final design is not significant (36 → 24, p = 0.15).
 - **The adversary is weak in absolute terms.** Tuned against contact1 or exact3, it realized its
   intended class in only 6/200 and 12/200 cases. Every engagement is still intercepted.
+- **In hits delivered, the final design wins every cell.**
+
+  | adversary | final | contact order 1 | exact Taylor n = 3 |
+  |---|---|---|---|
+  | final | **1783** | 1709 | 1566 |
+  | contact order 1 | **1793** | 1699 | 1561 |
+  | exact Taylor n = 3 | **1786** | 1617 | 1488 |
 
 ## 7a. Assessment
 
-1. **The order-4 cap is real.** Contact order is effectively capped at 4–5 in a stable loop.
-   Exact Taylor stops at n = 4, and ζ = 0.107 there.
+1. **The order-4 cap is real, but it binds only on the transient.** Contact order is
+   effectively capped at 4–5 in a stable loop. Exact Taylor stops at n = 4, and ζ = 0.107 there.
+   In every mode the deviation obeys P(D)(y_d − θ̂) = 0 (§3), so in steady state the loop tracks
+   the nowcast and the prediction cancels regardless of P. The cap restricts which deviation
+   poles may be chosen when P = A_n. The one design where it truly binds (exact Taylor) is clearly
+   worse on the random engagements: 2.8 m vs 0.56 m pointing RMS.
 2. **Prediction in the loop is a choice of deviation poles,** and fidelity bounds them:
    σ ≤ N/t_p. The final design gives up fidelity to get 20 rad/s poles. Contact order 1 attains
    the bound (6 rad/s) with the velocity prediction kept exact.
-3. **The pole choice trades nominal accuracy against adversarial robustness.**
+3. **The pole choice trades pointing accuracy for a lower per-pulse miss rate under attack, not
+   for more hits.**
 
-   | Design | MC pointing RMS | MC misses | worst-case adversarial miss rate |
-   |---|---|---|---|
-   | final | 0.56 m | 4 / 9197 | 2.67 % |
-   | contact order 1 | 0.99 m | 24 / 8931 | 1.39 % |
-   | exact Taylor n = 3 | 2.82 m | 23 / 8056 | 0.95 % |
+   | Design | MC pointing RMS | MC misses | worst-case adversarial miss rate | hits delivered under its own adversary (200 seeds) |
+   |---|---|---|---|---|
+   | final | 0.56 m | 4 / 9197 | 2.67 % | **1783** |
+   | contact order 1 | 0.99 m | 24 / 8931 | 1.39 % | 1699 |
+   | exact Taylor n = 3 | 2.82 m | 23 / 8056 | 0.95 % | 1488 |
 
    All three intercept every one of the 1000 + 1000 + 600 engagements. On the admissible random
-   engagements, the final design is clearly best. Contact order 1 is the balanced alternative:
-   half the worst-case miss rate for +0.45 m of nominal RMS. The defaults are left unchanged
-   pending review.
+   engagements, the final design is clearly best. Under attack it misses more often per pulse,
+   but it still delivers the most hits and hits first at the same time. The slow designs' lower
+   miss rate comes from shooting less. **The final design stays the default.**
 4. **Blends are a smooth dial, but not a useful one.** From α ≈ 0.2 they behave like the final
    design, including its exposure to the adversary.
 5. **The homotopy fire planner is now principled,** with event signatures and the Eq. 12 plan
