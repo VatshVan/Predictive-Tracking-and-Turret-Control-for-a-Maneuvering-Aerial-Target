@@ -32,11 +32,12 @@ LABELS = {
     'contact2': 'Contact order 2, P = ((s^2 + 8s + 32)/32)^2',
     'homotopy': 'Homotopy event-signature fire planner',
     'noreid': 'No class re-identification',
-    'final_pert': 'Final design, plant +-20 %',
+    'final_pert': 'Final design, plant +-20 % (R, L, J_eq, b)',
+    'final_pert6': 'Final design, plant +-20 % (R, L, J_eq, b, K_t, K_e)',
     'mm_pert': 'Moment-matched, plant +-20 %',
 }
 BLENDS = ('blend0.05', 'blend0.1', 'blend0.2', 'blend0.3', 'blend0.5', 'contact1', 'contact2')
-PAIRS = {'MC': [(v, 'final') for v in ('exact3', 'exact4', 'mm') + BLENDS + ('homotopy', 'noreid', 'final_pert')]
+PAIRS = {'MC': [(v, 'final') for v in ('exact3', 'exact4', 'mm') + BLENDS + ('homotopy', 'noreid', 'final_pert', 'final_pert6')]
                + [('mm_pert', 'final_pert')],
          'HG': [(v, 'final') for v in ('exact3', 'exact4', 'mm') + BLENDS + ('homotopy', 'noreid')]}
 HG_CLASSES = ('above', 'below', 'cross_down', 'cross_up', 'multiple')
@@ -73,6 +74,18 @@ def by_class(runs):
     return out
 
 
+def calib(runs, edges=(0.0, 0.95, 0.99, 0.999, 1.0001)):
+    """Predicted P_hit at each pulse against the observed hit frequency (hit: miss <= R_eng = 2 m)."""
+    ph = np.array([p[2] for r in runs for p in r['pulses']])
+    hit = np.array([p[1] <= 2.0 for r in runs for p in r['pulses']], float)
+    bins = []
+    for lo, hi in zip(edges[:-1], edges[1:]):
+        k = (ph >= lo) & (ph < hi)
+        if k.any():
+            bins.append(dict(lo=lo, hi=min(hi, 1.0), n=int(k.sum()), pred=float(ph[k].mean()), obs=float(hit[k].mean())))
+    return dict(n=len(ph), pred=float(ph.mean()), obs=float(hit.mean()), bins=bins)
+
+
 def main():
     stats = {}
     L = ['# Research campaign: exact-prediction modes and beam-relative homotopy', '',
@@ -94,7 +107,7 @@ def main():
             adj = holm({k: c[key] for k, c in comp.items()})
             for k in comp:
                 comp[k][key + '_holm'] = adj[k]
-        stats[fam] = dict(describe=desc, paired=comp, counters=cnt)
+        stats[fam] = dict(describe=desc, paired=comp, counters=cnt, calib={t: calib(runs[t]) for t in tags})
         if fam == 'HG':
             stats[fam]['by_class'] = {t: by_class(runs[t]) for t in tags}
 
@@ -127,6 +140,11 @@ def main():
             c = cnt[t]
             L.append(f"| {t} | {c['proj_mean']:.2f} | {100 * c['proj_runs_frac']:.1f} % | {c['proj_max']} | "
                      f"{c['wait_mean']:.2f} | {100 * c['wait_runs_frac']:.1f} % |")
+        c = stats[fam]['calib']['final']
+        L += ['', '### Hit-probability calibration at the pulses (final design)', '',
+              f"All pulses: predicted {100 * c['pred']:.2f} %, observed {100 * c['obs']:.2f} % (n = {c['n']}).", '',
+              '| P_hit bin | pulses | mean predicted | observed |', '|---|---|---|---|']
+        L += [f"| [{b['lo']:.3f}, {b['hi']:.3f}) | {b['n']} | {b['pred']:.4f} | {b['obs']:.4f} |" for b in c['bins']]
         if fam == 'HG':
             L += ['', '### HG by homotopy class (seed % 5)', '', '| Configuration | ' + ' | '.join(HG_CLASSES) + ' |',
                   '|---|' + '---|' * len(HG_CLASSES)]

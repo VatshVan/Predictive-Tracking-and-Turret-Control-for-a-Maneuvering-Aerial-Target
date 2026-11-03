@@ -3,7 +3,8 @@
 python scripts/monte_carlo.py --n 300 --f-ctrl 100 --tag baseline
 python scripts/monte_carlo.py --n 300 --set use_reid=False --tag no_reid
 python scripts/monte_carlo.py --n 1000 --prefix HG --set ref_mode=exact_taylor --out results/research --tag HG_exact3
---perturb-plant draws R, L, J_eq and b independently in +-20 % per seed (controller stays nominal).
+--perturb-plant draws R, L, J_eq and b independently in +-20 % per seed (controller stays nominal);
+--perturb-params R,L,J_EQ,B,K_T,K_E also perturbs the motor constants.
 """
 import argparse
 import json
@@ -38,22 +39,27 @@ def _parse_value(v):
             return v
 
 
-PLANT_NOM = dict(R=tp.R, L=tp.L, J_EQ=tp.J_EQ, B=tp.B)
+PLANT_NOM = dict(R=tp.R, L=tp.L, J_EQ=tp.J_EQ, B=tp.B, K_T=tp.K_T, K_E=tp.K_E)
+PERTURB_DEFAULT = ('R', 'L', 'J_EQ', 'B')
 
 
-def _perturb_plant(seed, on):
+def _perturb_plant(seed, on, names=PERTURB_DEFAULT):
+    """Draw every factor in a fixed order (so a seed's R, L, J_EQ, B draws do not depend on
+    which parameters are perturbed) and apply those in `names`."""
     rng = np.random.default_rng(770000 + seed)
-    f = {k: (rng.uniform(0.8, 1.2) if on else 1.0) for k in PLANT_NOM}
+    draws = {k: rng.uniform(0.8, 1.2) for k in PLANT_NOM}
+    f = {k: (draws[k] if on and k in names else 1.0) for k in PLANT_NOM}
     for k, v in PLANT_NOM.items():
         setattr(tp, k, v * f[k])
     return f
 
 
 def _one(job):
-    seed, f_ctrl, overrides, theta0, prefix, perturb = job
+    seed, f_ctrl, overrides, theta0, prefix, perturb = job[:6]
+    names = job[6] if len(job) > 6 else PERTURB_DEFAULT
     tc.CFG.update(overrides)
     scenario = f'{prefix}{seed}'
-    factors = _perturb_plant(seed, perturb)
+    factors = _perturb_plant(seed, perturb, names)
     o = run(scenario, f_ctrl=f_ctrl, theta0=theta0)
     m = o['metrics']
     m['seed'] = seed
@@ -127,17 +133,20 @@ def main():
     ap.add_argument('--prefix', default='MC', help="scenario family: 'MC' or 'HG'")
     ap.add_argument('--out', default=RESULTS)
     ap.add_argument('--perturb-plant', action='store_true')
+    ap.add_argument('--perturb-params', default=','.join(PERTURB_DEFAULT),
+                    help='plant parameters drawn in +-20 %% (from R,L,J_EQ,B,K_T,K_E)')
     ap.add_argument('--workers', type=int, default=max(1, (os.cpu_count() or 2) - 1))
     a = ap.parse_args()
     overrides = {k: _parse_value(v) for k, v in (s.split('=', 1) for s in a.set)}
-    jobs = [(s, a.f_ctrl, overrides, np.deg2rad(a.theta0_deg), a.prefix, a.perturb_plant)
+    names = tuple(a.perturb_params.split(','))
+    jobs = [(s, a.f_ctrl, overrides, np.deg2rad(a.theta0_deg), a.prefix, a.perturb_plant, names)
             for s in range(a.start, a.start + a.n)]
     t0 = time.time()
     with Pool(a.workers) as pool:
         rows = pool.map(_one, jobs, chunksize=4)
     summ = summarize(rows)
     summ.update(tag=a.tag, f_ctrl=a.f_ctrl, overrides=overrides, prefix=a.prefix,
-                perturb_plant=a.perturb_plant, wall_s=round(time.time() - t0, 1))
+                perturb_plant=a.perturb_plant, perturb_params=list(names) if a.perturb_plant else [], wall_s=round(time.time() - t0, 1))
     os.makedirs(a.out, exist_ok=True)
     with open(os.path.join(a.out, f'mc_{a.tag}.json'), 'w') as f:
         json.dump(dict(summary=summ, runs=rows), f, indent=1, default=float)

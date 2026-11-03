@@ -138,6 +138,11 @@ def main():
                  pertOK=mc['final_pert']['success'], pertMiss=mc['final_pert']['misses'],
                  pertPulses=f"{mc['final_pert']['pulses']:,}".replace(',', '\\,'),
                  pertRms=f"{mc['final_pert']['rms_median']:.2f}",
+                 pertSixOK=mc['final_pert6']['success'], pertSixMiss=mc['final_pert6']['misses'],
+                 pertSixPulses=f"{mc['final_pert6']['pulses']:,}".replace(',', '\\,'),
+                 pertSixRms=f"{mc['final_pert6']['rms_median']:.2f}",
+                 hgPhitPred=f"{100 * R['HG']['calib']['final']['pred']:.1f}",
+                 hgPhitObs=f"{100 * R['HG']['calib']['final']['obs']:.1f}",
                  homMiss=f"{mc['final']['misses']}$\\to${mc['homotopy']['misses']}",
                  homHgMiss=f"{f_hg['misses']}$\\to${hg['homotopy']['misses']}",
                  homP=f"{R['MC']['paired']['homotopy vs final']['p_miss_holm']:.1f}",
@@ -148,6 +153,14 @@ def main():
             m, h = mc[tag], hg[tag]
             research_rows.append(f"{lab} & {m['rms_median']:.2f} & {m['misses']} & "
                                  f"{100 * h['misses'] / h['pulses']:.2f} & {h['pulses'] - h['misses']}\\\\")
+
+    npath = os.path.join(RES, 'research', 'noslew.json')
+    if os.path.exists(npath):
+        with open(npath) as f:
+            NS = json.load(f)
+        N.update(nsN=NS['final']['n'], nsFinalRms=f"{NS['final']['rms_median']:.2f}",
+                 nsExactRms=f"{NS['exact3']['rms_median']:.2f}", nsContactRms=f"{NS['contact1']['rms_median']:.2f}",
+                 nsMmRms=f"{NS['mm']['rms_median']:.2f}")
 
     rows = []
     with open(os.path.join(HERE, '..', 'results', 'scenarios.txt')) as f:

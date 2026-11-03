@@ -295,13 +295,13 @@ Claims the evidence does **not** support:
 
 ---
 
-## 7a. Prediction in the loop and homotopy-guided testing
+## 7a. Prediction in the loop and shot-timed adversarial testing
 
 Full write-up: [research_lemma_homotopy.md](research_lemma_homotopy.md); report Section 10. Every alternative sits behind a `CFG` flag; the defaults reproduce the final design bit for bit on all 1000 MC seeds.
 
 **Order-4 cap.** With deviation feedback, (D + 20)³(y_d − θ̂) = 0 whatever A₃ is, so the Taylor polynomial does not shape the loop. Keeping the prediction in the loop means choosing deviation poles P = A_n, which is stable only for n ≤ 4 (≤ 5–6 with extra free terms). Keeping velocity fidelity bounds the slowest pole by N/t_p = 6 rad/s.
 
-**Homotopy-guided adversary (`HG<seed>`).** The classes are the side (above / through / below) on which the target passes each firing event. The adversary reverses the normal acceleration just before each shot toward the side its class requires. All 1000 cases respect the envelope. It is weak: 633/1000 still had every pulse hit, and only 116 realised the intended class.
+**Shot-timed adversary (`HG<seed>`).** In 1-D plus time the class of a path reduces to the side (above / through / below) on which the target passes each firing event. The adversary is white-box and non-causal: it simulates the controller once to find the shot times, then reverses the normal acceleration just before each shot toward the side its class requires. All 1000 cases respect the envelope. It is weak: 633/1000 still had every pulse hit, and only 116 realised the intended class.
 
 | Design | MC RMS [m] | MC misses / hits | HG miss rate | HG hits |
 |---|---|---|---|---|
@@ -315,7 +315,9 @@ All configurations intercept 1000/1000 in both families.
 - Slow poles miss fewer pulses per shot under attack, but they shoot less and hit less.
 - With the adversary re-tuned against each design, the final design still delivers the most hits in every cell (figure `research_deconfound`).
 - The homotopy fire planner is not significantly different (MC 4 → 11, HG 244 → 230 misses).
-- A ±20 % plant error leaves the final design at 1000/1000, 6 misses, 0.557 m.
+- A ±20 % error in R, L, J_eq, b leaves the final design at 1000/1000, 6 misses, 0.557 m. Adding K_t and K_e (`--perturb-params R,L,J_EQ,B,K_T,K_E`): 1000/1000, 15 misses in 8158 pulses, median RMS 1.69 m (0.77 m with K_e within ±5 %, ~3.2 m at 10–20 %); the feed-forward's velocity term is ≈ N·K_e.
+- Under the adversary P_hit is overconfident (99.74 % predicted, 97.33 % observed); on random engagements it is calibrated (99.91 % vs 99.96 %).
+- With no initial slew (turret on the target, MC0–299, `scripts/research_noslew.py`): final 0.52 m, contact order 1 0.84 m, exact Taylor n = 3 1.31 m, moment-matched 1.69 m.
 - Removing re-identification changes nothing.
 
 **The final design stays.** Figures: `docs/figures/research_contact_order.png`, `research_tradeoff.png`, `research_deconfound.png`.
@@ -326,7 +328,7 @@ All configurations intercept 1000/1000 in both families.
 
 1. **Generator realism.** The Monte Carlo maneuvers are smooth sinusoid sums with a 50 % chance of a break pulse. Their jerk is bounded well below a bang-bang adversary. The stress ensembles test sharper cases, but no generator can stand in for the instructor's hidden cases.
 2. **Single noise model.** Radar noise is white Gaussian as specified. Glint, bias and range-dependent noise are not modelled.
-3. **Plant exactness.** The feed-forward inverts the same plant the simulator integrates. A ±20 % error in R, L, J_eq and b was tested (1000/1000 intercepted, unchanged accuracy, §7a). Beyond that, robustness rests on the feedback margins (PM 68°, GM 16 dB).
+3. **Plant exactness.** The feed-forward inverts the same plant the simulator integrates. A ±20 % error in R, L, J_eq and b was tested (1000/1000 intercepted, unchanged accuracy, §7a); with K_t and K_e as well, interception held but pointing RMS rose to 1.69 m. Friction and backlash were not tested. Beyond that, robustness rests on the feedback margins (PM 68°, GM 16 dB).
 4. **Laser model.** Pulses are instantaneous rays, per the spec. Dwell and beam divergence are not modelled.
 5. **Small-effect power.** With 2 baseline misses in 500 paired runs, differences of a few misses (e.g. coast threshold 0.75: 8 misses) cannot reach significance. Miss-count conclusions are directional only. The single miss at 500 Hz and above in the rate study is the D6 reversal shot discussed in §5.1.
 6. **Rate-study scale.** 24 cases per rate support "no failures", not fine-grained comparisons between neighbouring rates.

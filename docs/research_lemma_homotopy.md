@@ -291,8 +291,10 @@ Findings:
 5. **The homotopy fire planner is now principled,** with event signatures and the Eq. 12 plan
    consistency, but it does not beat the mixture rule (MC 4 → 11, HG 244 → 230, both n.s.). The
    firing decision is not the bottleneck; the deviation poles are.
-6. **Robustness checks.** A ±20 % plant error and removing class re-identification have no
-   measurable effect.
+6. **Robustness checks.** A ±20 % error in R, L, J_eq, b and removing class re-identification have no
+   measurable effect. With K_t and K_e also perturbed, interception holds (1000/1000) but median pointing
+   RMS rises to 1.69 m, driven by K_e (Spearman 0.71), which sets the feed-forward's velocity term.
+   Under the shot-timed adversary P_hit is overconfident (99.74 % predicted, 97.33 % observed).
 
 ## 8. Reproduce
 
