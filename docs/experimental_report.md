@@ -291,7 +291,34 @@ Claims the evidence does **not** support:
 
 **Execution time** (scenario B, 1 kHz, 10 001 calls, quiet machine): `turret_controller.m` mean 0.51 ms, median 0.33 ms; Python mean 0.26 ms. Real-time use is practical up to about 1 kHz.
 
-**Parity.** 12 logged runs (A, B, C, D1, D4, D6 at 20 Hz and 1 kHz) were replayed open-loop through `turret_controller.m`. The maximum \|ΔV\| is 3·10⁻⁹ V, with zero fire-command differences.
+**Parity.** 12 logged runs (A, B, C, D1, D4, D6 at 20 Hz and 1 kHz) were replayed open-loop through `turret_controller.m`. The maximum \|ΔV\| is 3·10⁻⁹ V, with zero fire-command differences. Re-checked after the research extension below, which leaves the defaults unchanged: 12/12 cases, max \|ΔV\| 2.7·10⁻⁹ V, zero fire differences.
+
+---
+
+## 7a. Prediction in the loop and homotopy-guided testing
+
+Full write-up: [research_lemma_homotopy.md](research_lemma_homotopy.md); report Section 10. Every alternative sits behind a `CFG` flag; the defaults reproduce the final design bit for bit on all 1000 MC seeds.
+
+**Order-4 cap.** With deviation feedback, (D + 20)³(y_d − θ̂) = 0 whatever A₃ is, so the Taylor polynomial does not shape the loop. Keeping the prediction in the loop means choosing deviation poles P = A_n, which is stable only for n ≤ 4 (≤ 5–6 with extra free terms). Keeping velocity fidelity bounds the slowest pole by N/t_p = 6 rad/s.
+
+**Homotopy-guided adversary (`HG<seed>`).** The classes are the side (above / through / below) on which the target passes each firing event. The adversary reverses the normal acceleration just before each shot toward the side its class requires. All 1000 cases respect the envelope. It is weak: 633/1000 still had every pulse hit, and only 116 realised the intended class.
+
+| Design | MC RMS [m] | MC misses / hits | HG miss rate | HG hits |
+|---|---|---|---|---|
+| **Final** | **0.56** | **4 / 9193** | 2.67 % | **8901** |
+| Contact order 1, (1 + s/6)³ | 0.99 | 24 / 8907 | 1.08 % | 8515 |
+| Exact Taylor n = 3 | 2.82 | 23 / 8033 | 0.94 % | 7802 |
+| Moment-matched | 2.94 | 33 / 7904 | 1.09 % | 7776 |
+| Exact Taylor n = 4 | 4.91 | 23 / 7440 | 0.39 % | 7459 |
+
+All configurations intercept 1000/1000 in both families.
+- Slow poles miss fewer pulses per shot under attack, but they shoot less and hit less.
+- With the adversary re-tuned against each design, the final design still delivers the most hits in every cell (figure `research_deconfound`).
+- The homotopy fire planner is not significantly different (MC 4 → 11, HG 244 → 230 misses).
+- A ±20 % plant error leaves the final design at 1000/1000, 6 misses, 0.557 m.
+- Removing re-identification changes nothing.
+
+**The final design stays.** Figures: `docs/figures/research_contact_order.png`, `research_tradeoff.png`, `research_deconfound.png`.
 
 ---
 
@@ -299,7 +326,7 @@ Claims the evidence does **not** support:
 
 1. **Generator realism.** The Monte Carlo maneuvers are smooth sinusoid sums with a 50 % chance of a break pulse. Their jerk is bounded well below a bang-bang adversary. The stress ensembles test sharper cases, but no generator can stand in for the instructor's hidden cases.
 2. **Single noise model.** Radar noise is white Gaussian as specified. Glint, bias and range-dependent noise are not modelled.
-3. **Plant exactness.** The feed-forward inverts the same plant the simulator integrates. Robustness to parameter error rests on the feedback margins (PM 68°, GM 16 dB), not on simulation.
+3. **Plant exactness.** The feed-forward inverts the same plant the simulator integrates. A ±20 % error in R, L, J_eq and b was tested (1000/1000 intercepted, unchanged accuracy, §7a). Beyond that, robustness rests on the feedback margins (PM 68°, GM 16 dB).
 4. **Laser model.** Pulses are instantaneous rays, per the spec. Dwell and beam divergence are not modelled.
 5. **Small-effect power.** With 2 baseline misses in 500 paired runs, differences of a few misses (e.g. coast threshold 0.75: 8 misses) cannot reach significance. Miss-count conclusions are directional only. The single miss at 500 Hz and above in the rate study is the D6 reversal shot discussed in §5.1.
 6. **Rate-study scale.** 24 cases per rate support "no failures", not fine-grained comparisons between neighbouring rates.
@@ -311,7 +338,7 @@ Claims the evidence does **not** support:
 ```bash
 cd python
 bash scripts/run_all_experiments.sh           # everything below, in order
-python -m pytest -q tests                     # 40 tests
+python -m pytest -q tests                     # 54 tests
 python scripts/design_analysis.py             # plant, margins, Taylor-polynomial roots
 python scripts/plot_scenarios.py              # §5.1 table + scenario figures
 bash scripts/run_ablations.sh                 # §5.2, §6.1 Monte Carlo campaign
@@ -321,4 +348,6 @@ python scripts/stress_ensemble.py --reps 50   # §6.2 -> results/stress_report.m
 python scripts/rate_study.py                  # §7
 python scripts/plot_experiments.py            # Monte Carlo figures
 python scripts/export_parity.py               # then in MATLAB: parity_check, time_controller
+sh scripts/run_research.sh && sh scripts/run_research2.sh && sh scripts/run_deconfound.sh   # §7a
+python scripts/research_eval.py && python scripts/research_deconfound.py && python scripts/plot_research.py
 ```

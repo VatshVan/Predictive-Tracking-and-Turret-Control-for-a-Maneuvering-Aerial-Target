@@ -31,7 +31,9 @@ The core identity: in the linear time-invariant limit the reference generator's 
 | `python/tests/` | pytest suite |
 | `matlab/` | MATLAB port: `turret_controller.m`, `turret_plant.m`, `target_motion_generator.m`, run scripts |
 | `docs/power_stage.md` | 230 V outlet → ±600 V drive design (the voltage-limit assumption) |
-| `docs/Guardian_Experimental_Report.pdf` | Detailed experimental report (27 pages, all figures, statistics, final-evaluation analysis); source in `docs/report/` |
+| `docs/Guardian_Experimental_Report.pdf` | Detailed experimental report (34 pages, all figures, statistics, final-evaluation analysis); source in `docs/report/` |
+| `docs/research_lemma_homotopy.md` | Order-4 cap (contact order), alternative reference laws, homotopy-guided adversarial testing |
+| `python/guardian/homotopy.py` | Beam-relative homotopy classes and the `HG<seed>` adversarial scenarios |
 | `paper/` | IEEE paper source (`main.tex`; numbers generated into `numbers.tex`) |
 | `research_notes.md` | Design research and decisions |
 | `papers/README.md` | References (PDFs not redistributed) |
@@ -95,6 +97,13 @@ Monte Carlo over random admissible engagements (smooth bounded maneuvers, random
 | 1000 runs, 100 Hz | 1000/1000 (failure < 0.38 %) | 99.96 % [99.91, 99.99] | 1.21 [1.19, 1.24] / 1.83 / 2.14 |
 | 500 runs, 20 Hz | 500/500 | 99.81 % | 1.62 / 2.20 / 3.25 |
 | 500 runs, 100 Hz, turret starting at 60° | 500/500 | 99.94 % | 1.07 / 1.70 / 2.64 |
+
+Only the 1000 independent runs enter the failure bound. The 20 Hz and 60° sets reuse the same seeds.
+
+Beyond the random engagements:
+- **Homotopy-guided adversary.** On 1000 engagements where the target reverses its maneuver just before each shot (`HG<seed>`), every engagement was intercepted, with 97.3 % of pulses hitting.
+- **Plant error.** With R, L, J_eq and b each off by up to ±20 %, the design intercepted 1000/1000 with unchanged accuracy.
+- **Alternative reference laws.** Laws that keep the Taylor prediction inside the loop (exact Taylor n = 3, 4, moment-matched, contact order 1–2) miss less per shot under attack. They point 0.4–4.4 m worse and deliver fewer hits, so the deviation-feedback design stays (`docs/research_lemma_homotopy.md`).
 
 Feedback loop: ω_c = 4.1 rad/s, phase margin 68°, gain margin 16 dB (18.6 dB at 20 Hz ZOH).
 

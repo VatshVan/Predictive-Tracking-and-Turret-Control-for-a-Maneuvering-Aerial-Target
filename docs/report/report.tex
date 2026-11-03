@@ -32,8 +32,8 @@
 \maketitle
 
 \begin{abstract}
-\noindent This report documents every experiment run on the Guardian fire-control design. For each test it records what was done, what was measured, what was observed, and what that means for the design thesis. The thesis has three parts. The prescribed $t_p=0.5$\,s prediction is a lag to be \emph{cancelled}, not a lead. A predictor and a reference generator sharing the Taylor polynomial $A_3(s)$ cancel it exactly. And a jerk-state estimator, a plant-inverse feed-forward and a calibrated firing rule then let one frozen design engage any admissible V-44.
-Over 2\,900 independent engagements, the frozen design intercepted every target, bounding its failure probability below 0.13\% (95\% confidence). Of 9\,197 pulses in the main campaign, 99.96\% hit. Interception time follows a slew-limited physical model ($R^2=0.93$). The estimator is statistically consistent ($E[z^2]=1.008$), and the hit probability that drives firing is calibrated. Every design choice is justified by paired, multiplicity-corrected tests, including the ones that went against our expectations.
+\noindent This report documents every experiment run on the Guardian fire-control design. For each test it records what was done, what was measured, what was observed, and what that means for the design thesis. The thesis has three parts. The prescribed $t_p=0.5$\,s prediction is a lag to be \emph{cancelled}, not a lead. The reference generator returns the predicted reference to the estimated present elevation, with fast, well-damped deviation poles; keeping the full Taylor prediction inside the loop is possible only up to order four and forces slow poles (Section~\ref{sec:research}). And a jerk-state estimator, a plant-inverse feed-forward and a calibrated firing rule then let one frozen design engage any admissible V-44.
+Over 1\,000 independent random engagements, the frozen design intercepted every target, bounding its failure probability below 0.38\% (one-sided 97.5\% Wilson). It also intercepted all 1\,000 homotopy-guided adversarial engagements. Of 9\,197 pulses in the main campaign, 99.96\% hit. Interception time follows a slew-limited physical model ($R^2=0.93$). The estimator is statistically consistent ($E[z^2]=1.008$), and the hit probability that drives firing is calibrated. Every design choice is justified by paired, multiplicity-corrected tests, including the ones that went against our expectations.
 \end{abstract}
 
 \tableofcontents
@@ -45,7 +45,7 @@ Over 2\,900 independent engagements, the frozen design intercepted every target,
 The laser is instantaneous, so a hit requires the turret to point at the target's \emph{current} position at the instant of the pulse. The assignment nevertheless prescribes a predicted elevation reference at $t_p=0.5$\,s. Our thesis reconciles the two:
 
 \begin{quote}
-\emph{The $t_p$ prediction exists to cancel the lag of the turret loop. If the predictor $A_3(\D)$ and the reference generator share the same Taylor polynomial, the cancellation is exact by the time-shift property of LTI systems, so the turret tracks the target's present elevation. With a jerk-state estimator (matched to the plant's relative degree three), an exact plant-inverse feed-forward and a calibrated hit-probability firing rule, a single frozen design can engage any admissible V-44 trajectory, including through radar loss.}
+\emph{The $t_p$ prediction exists to cancel the lag of the turret loop. A reference generator driven by the predicted reference $A_3(\D)\hat\theta$ can return it exactly to the estimated present elevation, so the turret tracks the target's present elevation. With a jerk-state estimator (matched to the plant's relative degree three), an exact plant-inverse feed-forward and a calibrated hit-probability firing rule, a single frozen design can engage any admissible V-44 trajectory, including through radar loss.}
 \end{quote}
 
 \noindent We test six hypotheses that the thesis implies:
@@ -177,7 +177,7 @@ continuous & 4.10 & 68.5 & 16.1\\
 \item The bare $1/A_3$ lag decays slowly and overshoots by about 13\% (Fig.~\ref{fig:taylor}, right). In our first prototype, which used it directly, a 0.4\,rad acquisition slew overshot the target by 46\,m and pointing RMS was 5.3\,m.
 \item With deviation feedback $K(s)=165.7+24.5s+1.125s^2$, the deviation decays without overshoot in about 0.3\,s, while $y_d\to\hat\theta$ remains exact.
 \end{itemize}}
-\takeaway{Exact cancellation of the $t_p$ lead is possible and is bounded at order four. The deviation-feedback design keeps the cancellation while fixing its poor damping (supports H1 and motivates H3).}
+\takeaway{A loop that keeps the full Taylor prediction ($T=1/A_n$) exists only up to order four and is poorly damped. With deviation feedback, $y_d-\hat\theta$ obeys $(\D+20)^3(y_d-\hat\theta)=0$, so the turret still returns to the nowcast, but the Taylor polynomial no longer shapes the loop and the order-4 limit no longer binds. Section~\ref{sec:research} makes this precise and tests the alternatives (supports H1).}
 
 % ==========================================================================================
 \section{Experimental Design}
@@ -660,6 +660,11 @@ Rate [Hz] & Intercepted & Pulses hit & First hit mean / max [s] & Pointing RMS (
 \input{interface_section}
 
 % ==========================================================================================
+\section{Results VI: Prediction in the Loop and Homotopy-Guided Testing}
+\label{sec:research}
+\input{research_section}
+
+% ==========================================================================================
 \section{Final Evaluation: Expected Performance on Unseen Cases}
 \label{sec:final}
 The instructor's evaluation cases are hidden, and the design was frozen before any of them could be seen. This section therefore states, from our own evidence, what the frozen design should be expected to do on them, and where the expectation stops.
@@ -670,17 +675,18 @@ The specification guarantees that every evaluation case satisfies:
 \item the operating envelope: $800\le r\le2000$\,m, $|\mathbf v|\le150$\,m/s, $|\mathbf a|\le20$\,m/s$^2$, with smooth bounded maneuvers in $x$ and $y$;
 \item measurement-loss bounds: onset at or after 1\,s and duration at most 0.5\,s.
 \end{itemize}
-Our tests cover that envelope from three directions:
+Our tests cover that envelope from four directions:
 \begin{itemize}
 \item random sampling across it (1\,000 + 500 + 500 engagements, Fig.~\ref{fig:mcfeat});
 \item deliberately adversarial corners (D1--D6, each with 50 noise realisations): maneuvering inside a blackout, near-$a_{\max}$ weaving, a close pass to $83^\circ$, four blackouts, and 450\,m/s$^3$ jerk;
+\item 1\,000 homotopy-guided adversarial engagements that reverse the target's maneuver just before each shot (Section~\ref{sec:research});
 \item eight evaluation-script conventions (Section~\ref{sec:interface}).
 \end{itemize}
 No parameter was tuned per scenario. One parameter set was used for all of them.
 
 \subsection{Quantitative expectations}
 \begin{enumerate}
-\item \textbf{Interception.} Across all test sets the frozen design faced \textbf{2\,900} distinct engagements at its nominal settings (Monte Carlo at 100\,Hz, at 20\,Hz and from a $60^\circ$ start, plus stress ensembles at 100 and 20\,Hz), and intercepted all of them. The 95\% upper bound on the probability of failing to intercept an admissible engagement is \textbf{0.13\%} (Wilson; the rule of three gives 0.10\%). The interface experiment adds 2\,400 more engagements under other conventions (Section~\ref{sec:interface}).
+\item \textbf{Interception.} The failure bound rests on the \textbf{1\,000 independent random engagements} only: all were intercepted, so the probability of failing to intercept an admissible engagement is below \textbf{0.38\%} (one-sided 97.5\% Wilson; the rule of three gives 0.30\%). The other runs are not pooled into this bound, because they reuse the same trajectories (20\,Hz, $60^\circ$ start, interface conventions, plant error) or are noise replicas of nine scenarios (stress ensembles). They intercepted every case too, as did the 1\,000 adversarial engagements, which are worst-case evidence and not a random sample.
 \item \textbf{Interception time.} This is predictable from geometry (Fig.~\ref{fig:fh}b):
 \[ t_{\mathrm{hit}} \approx 0.26 + 0.0296\times\big|\theta_T(0)-\theta_{\mathrm{turret}}(0)\big|_{\mathrm{deg}}\ \mathrm{s}\ \ (\pm0.20\,\mathrm s,\ 95\%). \]
 For a turret starting at $0^\circ$ and targets between $8^\circ$ and $55^\circ$, expect 0.5--1.9\,s (mean about 1.2\,s). The worst conceivable slew, $95^\circ$ from $-10^\circ$ to $+85^\circ$, gives about 3.1\,s. A blackout overlapping acquisition delays the first hit until after recovery, by up to 0.5\,s.
@@ -701,7 +707,7 @@ The expectations above hold for admissible engagements as specified. They are no
 \item maneuvers sharper than tested (jerk above about 450\,m/s$^3$, i.e.\ near-instant acceleration switches);
 \item blackouts longer than 0.5\,s, after which drift exceeds $\Reng$ for any controller;
 \item targets above the $+85^\circ$ elevation stop, which are mechanically unreachable;
-\item a plant model that differs from the specified one, where robustness rests on the analytical margins (PM $68^\circ$, GM 16\,dB, $M_s=1.21$) rather than on tests.
+\item a plant that differs from the specified one by more than $\pm20\%$ in $R$, $L$, $J_{eq}$ or $b$ (tested: 1\,000/1\,000 intercepted, unchanged accuracy). Beyond that, robustness rests on the analytical margins (PM $68^\circ$, GM 16\,dB, $M_s=1.21$).
 \end{itemize}
 
 % ==========================================================================================
@@ -716,24 +722,25 @@ The expectations above hold for admissible engagements as specified. They are no
 \toprule
 & Evidence & Verdict\\
 \midrule
-H1 & Turret sits on the true elevation while the reference leads by $t_p$ (Section~5). Pointing error (0.2--0.4\,m) matches estimation error (0.22\,m median). $\theta-y_d$ is under 3\,cm. Exact cancellation exists only to order 4 and is fixed by deviation feedback (Fig.~\ref{fig:taylor}). & \textbf{Supported}\\
+H1 & Turret sits on the true elevation while the reference leads by $t_p$ (Section~5). Pointing error (0.2--0.4\,m) matches estimation error (0.22\,m median). $\theta-y_d$ is under 3\,cm. The return to the nowcast holds for any stable deviation poles; keeping the Taylor prediction in the loop is possible only to order 4--5 and costs accuracy (Section~\ref{sec:research}). & \textbf{Supported}\\
 H2 & $E[z^2]=1.008$ tracking, 0.92 coasting. Calibrated $\Phit$ (Brier 0.0045). 4 misses observed vs 8.6 predicted. & \textbf{Supported}\\
-H3 & Order 2: 3 interceptions lost and 34$\times$ the misses. Order 4 vs 3: better on maneuver switches (B, D4, D6) and at 20\,Hz; slightly worse on smooth targets. & \textbf{Supported in robust form}\\
+H3 & Order 2: 3 interceptions lost and 34$\times$ the misses. Order 4 vs 3: better on maneuver switches (B, D4, D6) and at 20\,Hz; slightly worse on smooth targets. & \textbf{Partly supported:} necessary vs order 2; vs order 3 a trade-off, not uniformly better\\
 H4 & 99.96\% pulse accuracy. Cadence at the recharge limit (median gap 1.01\,s). D2 shows fire withheld at bad moments. 0.999 threshold only slower. & \textbf{Supported}\\
 H5 & Graceful degradation (median 0.8\,m peak), honest $\sigma$ growth, 0.4\,s recovery. No late blind shots. Coasting shots 211/211 hit. & \textbf{Supported}\\
-H6 & 2\,900/2\,900 interceptions (failure $<0.13\%$); geometry-predictable timing; robust to eight interface conventions. & \textbf{Supported within the envelope}\\
+H6 & 1\,000/1\,000 independent random interceptions (failure $<0.38\%$); 1\,000/1\,000 adversarial; $\pm20\%$ plant error harmless; geometry-predictable timing; robust to eight interface conventions. & \textbf{Supported within the envelope}\\
 \bottomrule
 \end{tabularx}
 \end{table}
 
 \paragraph{Conclusion.} The evidence supports the thesis.
 \begin{itemize}
-\item Treating the prescribed prediction horizon as a lag to be cancelled, rather than a lead to be applied, yields a design in which the turret tracks the target's \emph{present} elevation. The time-shift property makes the cancellation exact, and the stability of the Taylor sections bounds it at order four.
+\item Treating the prescribed prediction horizon as a lag to be cancelled, rather than a lead to be applied, yields a design in which the turret tracks the target's \emph{present} elevation. Keeping the Taylor prediction itself inside the loop is bounded at order four by the stability of the Taylor sections and forces slow deviation poles. We tested that route, and it costs more accuracy and more hits than it saves.
 \item Pointing error is then limited only by estimation, about 0.2--0.4\,m against a 2\,m engagement radius.
 \item A jerk-state estimator matched to the plant's relative degree, an exact plant-inverse feed-forward and a calibrated firing rule turn that accuracy into hits: 99.96\% of pulses, with interception time set by turret kinematics alone.
-\item The same frozen design intercepted every one of 2\,900 admissible engagements, including adversarial maneuvers inside radar blackouts, and is insensitive to how an evaluation script delivers measurements.
+\item The same frozen design intercepted all 1\,000 independent random engagements (failure below 0.38\%) and all 1\,000 homotopy-guided adversarial ones. It is insensitive to $\pm20\%$ plant error and to how an evaluation script delivers measurements.
+\item Under the adversary its per-pulse miss rate rises to 2.7\%, because its fast deviation poles follow each estimator correction. Designs with slower poles miss less per shot but shoot and hit less, so the frozen design still delivers the most hits.
 \end{itemize}
-Two of our own ideas, the ambush hold and class re-identification, were tested and discarded or demoted by the same evidence. The order-4 choice is justified by robustness on maneuver switches, not by uniform superiority. The design's limits are those of physics, not of the controller: turret slew rate bounds interception time, and the reachable set of a maneuvering target bounds what any controller can guarantee late in a long blackout.
+Four of our own ideas, the ambush hold, class re-identification, the Taylor-prediction-in-the-loop reference laws and the homotopy fire planner, were tested and discarded or demoted by the same evidence. The order-4 choice is justified by robustness on maneuver switches, not by uniform superiority. The design's limits are those of physics, not of the controller: turret slew rate bounds interception time, and the reachable set of a maneuvering target bounds what any controller can guarantee late in a long blackout.
 
 \appendix
 \section{Reproducing This Report}
@@ -742,6 +749,11 @@ cd python
 bash scripts/run_all_experiments.sh       # all core experiments
 python scripts/interface_robustness.py --n 300
 python scripts/plot_report_extras.py
+python scripts/research_contact_order.py  # Section 10: contact order
+sh scripts/run_research.sh                # HG cache + MC/HG campaign
+sh scripts/run_research2.sh && sh scripts/run_deconfound.sh
+python scripts/research_eval.py && python scripts/research_deconfound.py
+python scripts/plot_research.py
 # MATLAB (matlab/): parity_check, time_controller, run_scenarios
 \end{verbatim}
 Raw results are written to \texttt{python/results/}: the Monte Carlo statistics, the stress and interface reports, and the rate-study table.
